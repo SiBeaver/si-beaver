@@ -1,0 +1,229 @@
+import { ulid } from 'ulidx';
+import type { OperationContext } from './context.js';
+import type { GoalNode } from '../core/nodes/types.js';
+import type { Edge } from '../core/edges/types.js';
+import type { EventRecord } from '../core/events/types.js';
+import { isValidTransition, GOAL_TRANSITIONS } from '../core/lifecycle/machines.js';
+
+// ============================================================
+// define_goal — 定义目标
+// ============================================================
+
+export interface DefineGoalInput {
+  title: string;
+  description?: string;
+  horizon: 'short' | 'medium' | 'long';
+  success_criteria?: string[];
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  parent_goal?: string;
+  tags?: string[];
+}
+
+export interface DefineGoalResult {
+  goal: GoalNode;
+  edges_created: Edge[];
+  event: EventRecord;
+}
+
+export function defineGoal(ctx: OperationContext, input: DefineGoalInput): DefineGoalResult {
+  const now = new Date().toISOString();
+  const goal: GoalNode = {
+    id: ulid(),
+    type: 'goal',
+    title: input.title,
+    description: input.description ?? '',
+    status: 'active',
+    tags: input.tags ?? [],
+    created_at: now,
+    updated_at: now,
+    metadata: {},
+    horizon: input.horizon,
+    success_criteria: input.success_criteria ?? [],
+    priority: input.priority,
+  };
+
+  ctx.nodes.insert(goal);
+
+  const edges_created: Edge[] = [];
+
+  if (input.parent_goal) {
+    const edge: Edge = {
+      id: ulid(),
+      source_id: input.parent_goal,
+      target_id: goal.id,
+      relation: 'decomposes_into',
+      weight: null,
+      annotation: null,
+      created_at: now,
+    };
+    ctx.edges.insert(edge);
+    edges_created.push(edge);
+  }
+
+  const event = ctx.events.emit({
+    event_type: 'goal.defined',
+    operation: 'define_goal',
+    node_id: goal.id,
+    node_type: 'goal',
+    payload: { ...input },
+    context: null,
+  });
+
+  return { goal, edges_created, event };
+}
+
+// ============================================================
+// decompose_goal — 分解目标
+// ============================================================
+
+export interface DecomposeGoalInput {
+  goal_id: string;
+  sub_goals?: {
+    title: string;
+    description?: string;
+    horizon: 'short' | 'medium' | 'long';
+    success_criteria?: string[];
+    priority?: 'critical' | 'high' | 'medium' | 'low';
+  }[];
+  tasks?: {
+    title: string;
+    description?: string;
+    effort?: 'trivial' | 'small' | 'medium' | 'large' | 'unknown';
+    priority?: 'critical' | 'high' | 'medium' | 'low';
+    acceptance_criteria?: string[];
+  }[];
+  explorations_needed?: {
+    topic: string;
+    reason: string;
+    hypothesis?: string;
+  }[];
+}
+
+export function decomposeGoal(ctx: OperationContext, input: DecomposeGoalInput) {
+  const now = new Date().toISOString();
+  const parent = ctx.nodes.getById(input.goal_id);
+  if (!parent || parent.type !== 'goal') {
+    throw new Error(`Goal not found: ${input.goal_id}`);
+  }
+
+  const sub_goals_created: GoalNode[] = [];
+  const tasks_created: any[] = [];
+  const explorations_created: any[] = [];
+  const edges_created: Edge[] = [];
+
+  // 创建子目标
+  for (const sg of input.sub_goals ?? []) {
+    const node: GoalNode = {
+      id: ulid(), type: 'goal', title: sg.title,
+      description: sg.description ?? '', status: 'active',
+      tags: [], created_at: now, updated_at: now, metadata: {},
+      horizon: sg.horizon, success_criteria: sg.success_criteria ?? [],
+      priority: sg.priority ?? 'medium',
+    };
+    ctx.nodes.insert(node);
+    sub_goals_created.push(node);
+
+    const edge: Edge = {
+      id: ulid(), source_id: input.goal_id, target_id: node.id,
+      relation: 'decomposes_into', weight: null, annotation: null, created_at: now,
+    };
+    ctx.edges.insert(edge);
+    edges_created.push(edge);
+  }
+
+  // 创建任务
+  for (const t of input.tasks ?? []) {
+    const node = {
+      id: ulid(), type: 'task' as const, title: t.title,
+      description: t.description ?? '', status: 'proposed' as const,
+      tags: [], created_at: now, updated_at: now, metadata: {},
+      effort: t.effort ?? 'unknown' as const,
+      priority: t.priority ?? 'medium' as const,
+      acceptance_criteria: t.acceptance_criteria ?? [],
+    };
+    ctx.nodes.insert(node);
+    tasks_created.push(node);
+
+    const edge: Edge = {
+      id: ulid(), source_id: input.goal_id, target_id: node.id,
+      relation: 'decomposes_into', weight: null, annotation: null, created_at: now,
+    };
+    ctx.edges.insert(edge);
+    edges_created.push(edge);
+  }
+
+  // 创建探索
+  for (const e of input.explorations_needed ?? []) {
+    const node = {
+      id: ulid(), type: 'exploration' as const, title: e.topic,
+      description: e.reason, status: 'active' as const,
+      tags: [], created_at: now, updated_at: now, metadata: {},
+      hypothesis: e.hypothesis ?? '', approach: '',
+      findings: [], conclusion: null, outcome: null,
+    };
+    ctx.nodes.insert(node);
+    explorations_created.push(node);
+
+    const edge: Edge = {
+      id: ulid(), source_id: input.goal_id, target_id: node.id,
+      relation: 'spawns', weight: null, annotation: null, created_at: now,
+    };
+    ctx.edges.insert(edge);
+    edges_created.push(edge);
+  }
+
+  const event = ctx.events.emit({
+    event_type: 'goal.decomposed',
+    operation: 'decompose_goal',
+    node_id: input.goal_id,
+    node_type: 'goal',
+    payload: {
+      sub_goals: sub_goals_created.length,
+      tasks: tasks_created.length,
+      explorations: explorations_created.length,
+    },
+  });
+
+  return { sub_goals_created, tasks_created, explorations_created, edges_created, event };
+}
+
+// ============================================================
+// update_goal_status — 更新目标状态
+// ============================================================
+
+export interface UpdateGoalStatusInput {
+  goal_id: string;
+  new_status: 'active' | 'achieved' | 'abandoned' | 'deferred';
+  reason: string;
+}
+
+export function updateGoalStatus(ctx: OperationContext, input: UpdateGoalStatusInput) {
+  const goal = ctx.nodes.getById(input.goal_id);
+  if (!goal || goal.type !== 'goal') {
+    throw new Error(`Goal not found: ${input.goal_id}`);
+  }
+
+  const oldStatus = goal.status;
+  if (!isValidTransition(GOAL_TRANSITIONS, oldStatus as any, input.new_status)) {
+    throw new Error(`Invalid transition: ${oldStatus} → ${input.new_status}`);
+  }
+
+  const updated: GoalNode = {
+    ...goal as GoalNode,
+    status: input.new_status,
+    updated_at: new Date().toISOString(),
+  };
+  ctx.nodes.update(updated);
+
+  const event = ctx.events.emit({
+    event_type: 'goal.status_changed',
+    operation: 'update_goal_status',
+    node_id: input.goal_id,
+    node_type: 'goal',
+    payload: { reason: input.reason },
+    diff: [{ field: 'status', old_value: oldStatus, new_value: input.new_status }],
+    context: input.reason,
+  });
+
+  return { goal: updated, event };
+}

@@ -8,18 +8,25 @@
     "si-beaver": "dist/cli.js"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/api/server.ts",
     "build": "tsup",
     "test": "vitest",
     "lint": "tsc --noEmit",
-    "mcp": "tsx src/mcp/server.ts"
+    "mcp": "tsx src/mcp/server.ts",
+    "api": "tsx src/api/server.ts"
   },
-  "keywords": ["ai-native", "project-management", "mcp", "cognitive-graph"],
+  "keywords": [
+    "ai-native",
+    "project-management",
+    "mcp",
+    "cognitive-graph"
+  ],
   "license": "Apache-2.0",
   "engines": {
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.1",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "better-sqlite3": "^11.8.2",
     "hono": "^4.7.10",
