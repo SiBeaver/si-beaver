@@ -12,6 +12,8 @@ import {
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
   linkNodes, getProjectState, getNodeContext,
+  getRoadmap, goalProgress, decisionTrail, knowledgeMap,
+  staleItems, currentBlockers, recentActivity, fullTextSearch,
 } from '../operations/index.js';
 
 // ============================================================
@@ -65,6 +67,60 @@ app.get('/api/v1/events', (c) => {
     return c.json(ctx.eventStore.getSince(since));
   }
   return c.json(ctx.eventStore.getRecent(Number(limit) || 20));
+});
+
+app.get('/api/v1/roadmap', (c) => {
+  const rootGoal = c.req.query('root_goal');
+  const includeCompleted = c.req.query('include_completed') === 'true';
+  const maxDepth = c.req.query('max_depth');
+  try {
+    const result = getRoadmap(ctx, {
+      root_goal: rootGoal || undefined,
+      include_completed: includeCompleted,
+      max_depth: maxDepth ? Number(maxDepth) : undefined,
+    });
+    return c.json(result);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 404);
+  }
+});
+
+app.get('/api/v1/goals/progress', (c) => {
+  return c.json(goalProgress(ctx));
+});
+
+app.get('/api/v1/nodes/:id/trail', (c) => {
+  const nodeId = c.req.param('id');
+  try {
+    return c.json(decisionTrail(ctx, nodeId));
+  } catch (e: any) {
+    return c.json({ error: e.message }, 404);
+  }
+});
+
+app.get('/api/v1/knowledge', (c) => {
+  const domain = c.req.query('domain');
+  return c.json(knowledgeMap(ctx, domain || undefined));
+});
+
+app.get('/api/v1/stale', (c) => {
+  const days = c.req.query('days');
+  return c.json(staleItems(ctx, days ? Number(days) : undefined));
+});
+
+app.get('/api/v1/blockers', (c) => {
+  return c.json(currentBlockers(ctx));
+});
+
+app.get('/api/v1/activity', (c) => {
+  const limit = c.req.query('limit');
+  return c.json(recentActivity(ctx, limit ? Number(limit) : undefined));
+});
+
+app.get('/api/v1/fts', (c) => {
+  const q = c.req.query('q');
+  if (!q) return c.json({ error: 'Missing query parameter "q"' }, 400);
+  return c.json(fullTextSearch(ctx, q));
 });
 
 // ============================================================

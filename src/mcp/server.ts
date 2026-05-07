@@ -13,6 +13,8 @@ import {
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
   linkNodes, getProjectState, getNodeContext,
+  getRoadmap, goalProgress, decisionTrail, knowledgeMap,
+  staleItems, currentBlockers, recentActivity, fullTextSearch,
 } from '../operations/index.js';
 
 // ============================================================
@@ -395,6 +397,102 @@ server.tool(
   async (args) => {
     const results = ctx.nodes.search(args.query);
     return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
+  }
+);
+
+// --- 查询操作 ---
+
+server.tool(
+  'get_roadmap',
+  '获取目标路线图（树状结构，含进度）',
+  {
+    root_goal: z.string().optional().describe('根目标 ID，不指定则返回所有顶层目标'),
+    include_completed: z.boolean().optional().describe('是否包含已完成的目标'),
+    max_depth: z.number().optional().describe('最大展开深度'),
+  },
+  async (args) => {
+    const result = getRoadmap(ctx, args);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'goal_progress',
+  '获取所有活跃目标的子项完成进度',
+  {},
+  async () => {
+    const result = goalProgress(ctx);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'decision_trail',
+  '追溯决策/探索链 — 回答「为什么做了某个决策」',
+  {
+    node_id: z.string().describe('起始节点 ID'),
+  },
+  async (args) => {
+    const result = decisionTrail(ctx, args.node_id);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'knowledge_map',
+  '按领域查看知识图谱',
+  {
+    domain: z.string().optional().describe('过滤领域，不指定则返回全部'),
+  },
+  async (args) => {
+    const result = knowledgeMap(ctx, args.domain);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'stale_items',
+  '查找长时间未更新的活跃节点',
+  {
+    days: z.number().optional().describe('超过多少天未更新视为过期，默认 7'),
+  },
+  async (args) => {
+    const result = staleItems(ctx, args.days);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'current_blockers',
+  '查找阻塞活跃目标/任务的风险和技术债',
+  {},
+  async () => {
+    const result = currentBlockers(ctx);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'recent_activity',
+  '获取最近的项目事件',
+  {
+    limit: z.number().optional().describe('返回事件数量，默认 20'),
+  },
+  async (args) => {
+    const result = recentActivity(ctx, args.limit);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'full_text_search',
+  '全文搜索所有节点（标题和描述）',
+  {
+    query: z.string().describe('搜索关键词'),
+  },
+  async (args) => {
+    const result = fullTextSearch(ctx, args.query);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   }
 );
 
