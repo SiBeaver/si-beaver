@@ -1,16 +1,18 @@
 import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Layout, Menu, Typography, Button, theme } from 'antd';
 import {
   DashboardOutlined,
   NodeIndexOutlined,
   WarningOutlined,
   ReloadOutlined,
+  ArrowLeftOutlined,
 } from '@ant-design/icons';
 import { useSWRConfig } from 'swr';
-import { OverviewView } from './components/overview/OverviewView';
-import { RoadmapView } from './components/roadmap/RoadmapView';
-import { RisksView } from './components/risks/RisksView';
-import type { Tab } from './lib/constants';
+import { OverviewView } from '../components/overview/OverviewView';
+import { RoadmapView } from '../components/roadmap/RoadmapView';
+import { RisksView } from '../components/risks/RisksView';
+import type { Tab } from '../lib/constants';
 
 const { Sider, Content } = Layout;
 
@@ -20,8 +22,10 @@ const TAB_TITLES: Record<Tab, string> = {
   risks: '风险',
 };
 
-export function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
+export function ProjectDetailPage() {
+  const { slug, tab } = useParams<{ slug: string; tab: string }>();
+  const activeTab = (tab as Tab) || 'overview';
+  const navigate = useNavigate();
   const { mutate } = useSWRConfig();
   const [spinning, setSpinning] = useState(false);
   const { token } = theme.useToken();
@@ -45,24 +49,28 @@ export function App() {
           paddingTop: 20,
         }}
       >
-        <div style={{
-          width: 36,
-          height: 36,
-          borderRadius: 10,
-          background: token.colorPrimary,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: 24,
-          marginLeft: 18,
-        }}>
-          <Typography.Text style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>SB</Typography.Text>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: token.colorPrimaryBg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 24,
+            marginLeft: 18,
+            cursor: 'pointer',
+          }}
+          onClick={() => navigate('/projects')}
+        >
+          <ArrowLeftOutlined style={{ color: token.colorPrimary, fontSize: 14 }} />
         </div>
         <Menu
           mode="inline"
           inlineCollapsed
           selectedKeys={[activeTab]}
-          onSelect={({ key }) => setActiveTab(key as Tab)}
+          onSelect={({ key }) => navigate(`/projects/${slug}/${key}`)}
           style={{ border: 'none', background: 'transparent' }}
           items={[
             { key: 'overview', icon: <DashboardOutlined style={{ fontSize: 18 }} />, label: '概览' },
@@ -79,7 +87,7 @@ export function App() {
           justifyContent: 'space-between',
         }}>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            {TAB_TITLES[activeTab]}
+            {TAB_TITLES[activeTab] ?? activeTab}
           </Typography.Title>
           <Button
             type="text"
@@ -89,9 +97,9 @@ export function App() {
           />
         </div>
         <Content style={{ padding: 32, overflow: 'auto' }}>
-          {activeTab === 'overview' && <OverviewView />}
-          {activeTab === 'roadmap' && <RoadmapView />}
-          {activeTab === 'risks' && <RisksView />}
+          {activeTab === 'overview' && <OverviewView slug={slug!} />}
+          {activeTab === 'roadmap' && <RoadmapView slug={slug!} />}
+          {activeTab === 'risks' && <RisksView slug={slug!} />}
         </Content>
       </Layout>
     </Layout>

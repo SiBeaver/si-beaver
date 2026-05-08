@@ -1,9 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { RouterProvider } from 'react-router-dom';
 import { ConfigProvider, theme as antTheme, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import { SWRConfig } from 'swr';
 import './index.css';
-import { App } from './App';
+import { router } from './router';
 import { useThemeMode } from './hooks/useThemeMode';
 
 function Root() {
@@ -42,7 +44,9 @@ function Root() {
       }}
     >
       <AntApp>
-        <App />
+        <SWRConfig value={{ revalidateOnFocus: true }}>
+          <RouterProvider router={router} />
+        </SWRConfig>
       </AntApp>
     </ConfigProvider>
   );

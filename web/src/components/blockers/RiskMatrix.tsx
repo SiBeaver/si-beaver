@@ -1,4 +1,5 @@
 import { Typography, theme } from 'antd';
+import { LIKELIHOOD_LABELS, IMPACT_LABELS } from '../../lib/constants';
 import type { CognitiveNode } from '../../lib/types';
 
 const LIKELIHOODS = ['high', 'medium', 'low'] as const;
@@ -55,14 +56,14 @@ export function RiskMatrix({ risks }: { risks: CognitiveNode[] }) {
           <div style={{ width: 64 }} />
           {IMPACTS.map(impact => (
             <div key={impact} style={{ width: 64, textAlign: 'center', fontSize: 11, color: token.colorTextSecondary }}>
-              {impact}
+              {IMPACT_LABELS[impact] ?? impact}
             </div>
           ))}
         </div>
         {LIKELIHOODS.map(likelihood => (
           <div key={likelihood} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
             <div style={{ width: 64, textAlign: 'right', paddingRight: 8, fontSize: 11, color: token.colorTextSecondary }}>
-              {likelihood}
+              {LIKELIHOOD_LABELS[likelihood] ?? likelihood}
             </div>
             {IMPACTS.map(impact => {
               const key = `${likelihood}-${impact}`;

@@ -7,17 +7,17 @@ import { RiskMatrix } from '../blockers/RiskMatrix';
 import { TechDebtList } from '../blockers/TechDebtList';
 import { EmptyState } from '../shared/EmptyState';
 
-export function RisksView() {
-  const { data: blockersData, error: blockersError, isLoading: blockersLoading } = useBlockers();
-  const { data: stateData, isLoading: stateLoading } = useProjectState();
+export function RisksView({ slug }: { slug: string }) {
+  const { data: blockersData, error: blockersError, isLoading: blockersLoading } = useBlockers(slug);
+  const { data: stateData, isLoading: stateLoading } = useProjectState(slug);
   const { token } = theme.useToken();
 
   if (blockersLoading || stateLoading) return <Skeleton active paragraph={{ rows: 8 }} />;
   if (blockersError) return <Alert type="error" message="加载失败" description={blockersError.message} showIcon />;
 
   const blockers = blockersData?.blockers ?? [];
-  const risks = stateData?.open_risks ?? [];
-  const techDebt = stateData?.critical_tech_debt ?? [];
+  const risks = stateData?.openRisks ?? [];
+  const techDebt = stateData?.criticalTechDebt ?? [];
   const hasContent = blockers.length > 0 || risks.length > 0 || techDebt.length > 0;
 
   if (!hasContent) {

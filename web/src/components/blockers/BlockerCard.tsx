@@ -1,7 +1,7 @@
 import { Card, Space, Tag, Typography, Descriptions } from 'antd';
 import { StatusBadge } from '../shared/StatusBadge';
 import { NodeTypeBadge } from '../shared/NodeTypeBadge';
-import { SEVERITY_COLORS } from '../../lib/constants';
+import { SEVERITY_COLORS, SEVERITY_LABELS, LIKELIHOOD_LABELS, IMPACT_LABELS } from '../../lib/constants';
 import type { BlockerItem } from '../../lib/types';
 
 export function BlockerCard({ item }: { item: BlockerItem }) {
@@ -14,7 +14,7 @@ export function BlockerCard({ item }: { item: BlockerItem }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <NodeTypeBadge type={blocker.type} />
           <Typography.Text strong style={{ flex: 1 }}>{blocker.title}</Typography.Text>
-          {severityLabel && <Tag color={SEVERITY_COLORS[severityLabel] ?? 'default'}>{severityLabel}</Tag>}
+          {severityLabel && <Tag color={SEVERITY_COLORS[severityLabel] ?? 'default'}>{SEVERITY_LABELS[severityLabel] ?? severityLabel}</Tag>}
           <StatusBadge status={blocker.status} />
         </div>
 
@@ -26,16 +26,16 @@ export function BlockerCard({ item }: { item: BlockerItem }) {
 
         {blocker.type === 'risk' && (
           <Descriptions size="small" column={3} bordered={false}>
-            {blocker.likelihood && <Descriptions.Item label="可能性">{blocker.likelihood}</Descriptions.Item>}
-            {blocker.impact && <Descriptions.Item label="影响">{blocker.impact}</Descriptions.Item>}
-            {blocker.mitigation_strategy && <Descriptions.Item label="缓解策略">{blocker.mitigation_strategy}</Descriptions.Item>}
+            {blocker.likelihood && <Descriptions.Item label="可能性">{LIKELIHOOD_LABELS[blocker.likelihood] ?? blocker.likelihood}</Descriptions.Item>}
+            {blocker.impact && <Descriptions.Item label="影响">{IMPACT_LABELS[blocker.impact] ?? blocker.impact}</Descriptions.Item>}
+            {blocker.mitigationStrategy && <Descriptions.Item label="缓解策略">{blocker.mitigationStrategy}</Descriptions.Item>}
           </Descriptions>
         )}
 
         {blocker.type === 'tech_debt' && (
           <Descriptions size="small" column={2} bordered={false}>
-            {blocker.affected_area && <Descriptions.Item label="影响区域">{blocker.affected_area}</Descriptions.Item>}
-            {blocker.cost_of_delay && <Descriptions.Item label="延迟代价">{blocker.cost_of_delay}</Descriptions.Item>}
+            {blocker.affectedArea && <Descriptions.Item label="影响区域">{blocker.affectedArea}</Descriptions.Item>}
+            {blocker.costOfDelay && <Descriptions.Item label="延迟代价">{blocker.costOfDelay}</Descriptions.Item>}
           </Descriptions>
         )}
 

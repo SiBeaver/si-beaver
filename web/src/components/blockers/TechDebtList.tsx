@@ -1,6 +1,6 @@
 import { Table, Tag, Typography } from 'antd';
 import { StatusBadge } from '../shared/StatusBadge';
-import { SEVERITY_COLORS } from '../../lib/constants';
+import { SEVERITY_COLORS, SEVERITY_LABELS } from '../../lib/constants';
 import type { CognitiveNode } from '../../lib/types';
 
 const columns = [
@@ -16,12 +16,12 @@ const columns = [
     key: 'severity',
     width: 100,
     render: (val: string | undefined) =>
-      val ? <Tag color={SEVERITY_COLORS[val] ?? 'default'}>{val}</Tag> : '-',
+      val ? <Tag color={SEVERITY_COLORS[val] ?? 'default'}>{SEVERITY_LABELS[val] ?? val}</Tag> : '-',
   },
   {
     title: '影响区域',
-    dataIndex: 'affected_area',
-    key: 'affected_area',
+    dataIndex: 'affectedArea',
+    key: 'affectedArea',
     render: (val: string | undefined) =>
       <Typography.Text type="secondary">{val ?? '-'}</Typography.Text>,
   },
@@ -34,8 +34,8 @@ const columns = [
   },
   {
     title: '延迟代价',
-    dataIndex: 'cost_of_delay',
-    key: 'cost_of_delay',
+    dataIndex: 'costOfDelay',
+    key: 'costOfDelay',
     render: (val: string | undefined) =>
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>{val ?? '-'}</Typography.Text>,
   },

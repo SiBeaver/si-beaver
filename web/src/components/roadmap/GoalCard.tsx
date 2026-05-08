@@ -5,7 +5,7 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { NodeTypeBadge } from '../shared/NodeTypeBadge';
 import { ProgressBar } from '../shared/ProgressBar';
 import { TimeAgo } from '../shared/TimeAgo';
-import { PRIORITY_COLORS } from '../../lib/constants';
+import { PRIORITY_COLORS, PRIORITY_LABELS, HORIZON_LABELS } from '../../lib/constants';
 import type { CognitiveNode } from '../../lib/types';
 
 interface GoalCardProps {
@@ -52,12 +52,12 @@ export function GoalCard({ node, progress, hasChildren, expanded, onToggle }: Go
 
         {node.priority && (
           <Tag color={PRIORITY_COLORS[node.priority] ?? 'default'} bordered={false} style={{ fontSize: 11 }}>
-            {node.priority}
+            {PRIORITY_LABELS[node.priority] ?? node.priority}
           </Tag>
         )}
 
         {node.horizon && (
-          <Typography.Text type="secondary" style={{ fontSize: 11 }}>{node.horizon}</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>{HORIZON_LABELS[node.horizon] ?? node.horizon}</Typography.Text>
         )}
 
         <StatusBadge status={node.status} />
@@ -80,11 +80,11 @@ export function GoalCard({ node, progress, hasChildren, expanded, onToggle }: Go
                 {node.description}
               </Typography.Paragraph>
             )}
-            {node.success_criteria && node.success_criteria.length > 0 && (
+            {node.successCriteria && node.successCriteria.length > 0 && (
               <div>
                 <Typography.Text type="secondary" strong style={{ fontSize: 12 }}>成功标准:</Typography.Text>
                 <ul style={{ margin: '4px 0 0', paddingLeft: 20, fontSize: 13 }}>
-                  {node.success_criteria.map((c, i) => <li key={i}>{c}</li>)}
+                  {node.successCriteria.map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
               </div>
             )}
@@ -94,8 +94,8 @@ export function GoalCard({ node, progress, hasChildren, expanded, onToggle }: Go
               </Space>
             )}
             <Space size="large">
-              <span style={{ fontSize: 12 }}>创建: <TimeAgo date={node.created_at} /></span>
-              <span style={{ fontSize: 12 }}>更新: <TimeAgo date={node.updated_at} /></span>
+              <span style={{ fontSize: 12 }}>创建: <TimeAgo date={node.createdAt} /></span>
+              <span style={{ fontSize: 12 }}>更新: <TimeAgo date={node.updatedAt} /></span>
             </Space>
           </Space>
         </Card>

@@ -1,0 +1,15 @@
+services:
+  si-beaver:
+    build: .
+    container_name: si-beaver
+    restart: unless-stopped
+    ports:
+      - "7420:7420"
+    volumes:
+      - si-beaver-data:/data
+    environment:
+      - SI_BEAVER_HOME=/data
+      - SI_BEAVER_PORT=7420
+
+volumes:
+  si-beaver-data:

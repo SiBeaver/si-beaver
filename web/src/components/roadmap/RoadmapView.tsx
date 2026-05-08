@@ -3,8 +3,8 @@ import { useRoadmap } from '../../hooks/useRoadmap';
 import { GoalTreeNode } from './GoalTreeNode';
 import { EmptyState } from '../shared/EmptyState';
 
-export function RoadmapView() {
-  const { data, error, isLoading } = useRoadmap();
+export function RoadmapView({ slug }: { slug: string }) {
+  const { data, error, isLoading } = useRoadmap(slug);
 
   if (isLoading) return <Skeleton active paragraph={{ rows: 6 }} />;
   if (error) return <Alert type="error" message="加载失败" description={error.message} showIcon />;

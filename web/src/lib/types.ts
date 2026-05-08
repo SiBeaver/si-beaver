@@ -1,4 +1,14 @@
-// Mirror of backend node types — kept simple with optional type-specific fields
+export interface ProjectMeta {
+  slug: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  archived: boolean;
+  metadata: Record<string, unknown>;
+}
+
+// Mirror of backend node types — camelCase field names matching REST API responses
 
 export interface CognitiveNode {
   id: string;
@@ -7,16 +17,16 @@ export interface CognitiveNode {
   description: string;
   status: string;
   tags: string[];
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
   metadata: Record<string, unknown>;
   // goal
   horizon?: 'short' | 'medium' | 'long';
-  success_criteria?: string[];
+  successCriteria?: string[];
   priority?: 'critical' | 'high' | 'medium' | 'low';
   // task
   effort?: 'trivial' | 'small' | 'medium' | 'large' | 'unknown';
-  acceptance_criteria?: string[];
+  acceptanceCriteria?: string[];
   // exploration
   hypothesis?: string;
   approach?: string;
@@ -26,27 +36,27 @@ export interface CognitiveNode {
   // decision
   context?: string;
   rationale?: string;
-  alternatives_considered?: { option: string; pros: string[]; cons: string[]; reason_rejected: string }[];
+  alternativesConsidered?: { option: string; pros: string[]; cons: string[]; reasonRejected: string }[];
   consequences?: string[];
-  superseded_by?: string | null;
+  supersededBy?: string | null;
   // risk
   likelihood?: 'low' | 'medium' | 'high';
   impact?: 'low' | 'medium' | 'high' | 'critical';
-  mitigation_strategy?: string | null;
-  trigger_conditions?: string[];
+  mitigationStrategy?: string | null;
+  triggerConditions?: string[];
   // tech_debt
   severity?: 'low' | 'medium' | 'high' | 'critical';
-  affected_area?: string;
-  cost_of_delay?: string;
-  resolution_approach?: string | null;
+  affectedArea?: string;
+  costOfDelay?: string;
+  resolutionApproach?: string | null;
   // knowledge
   domain?: string;
   confidence?: 'low' | 'medium' | 'high';
   source?: string;
   // artifact
-  artifact_type?: string;
+  artifactType?: string;
   uri?: string | null;
-  content_summary?: string | null;
+  contentSummary?: string | null;
 }
 
 export interface RoadmapItem {
@@ -80,24 +90,24 @@ export interface BlockersResponse {
 }
 
 export interface ProjectState {
-  active_goals: CognitiveNode[];
-  active_explorations: CognitiveNode[];
-  recent_decisions: CognitiveNode[];
-  open_risks: CognitiveNode[];
-  critical_tech_debt: CognitiveNode[];
-  pending_tasks: CognitiveNode[];
+  activeGoals: CognitiveNode[];
+  activeExplorations: CognitiveNode[];
+  recentDecisions: CognitiveNode[];
+  openRisks: CognitiveNode[];
+  criticalTechDebt: CognitiveNode[];
+  pendingTasks: CognitiveNode[];
   statistics: {
-    total_goals: number;
-    achieved_goals: number;
-    active_explorations: number;
-    open_risks: number;
-    pending_tasks: number;
-    tech_debt_items: number;
+    totalGoals: number;
+    achievedGoals: number;
+    activeExplorations: number;
+    openRisks: number;
+    pendingTasks: number;
+    techDebtItems: number;
   };
 }
 
 export interface StaleResponse {
-  stale_items: CognitiveNode[];
-  cutoff_date: string;
+  staleItems: CognitiveNode[];
+  cutoffDate: string;
   days: number;
 }

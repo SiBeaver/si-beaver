@@ -12,31 +12,31 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { TimeAgo } from '../shared/TimeAgo';
 import { EmptyState } from '../shared/EmptyState';
 
-export function OverviewView() {
-  const { data, error, isLoading } = useProjectState();
+export function OverviewView({ slug }: { slug: string }) {
+  const { data, error, isLoading } = useProjectState(slug);
   const { token } = theme.useToken();
 
   if (isLoading) return <Skeleton active paragraph={{ rows: 8 }} />;
   if (error) return <Alert type="error" message="加载失败" description={error.message} showIcon />;
   if (!data) return <EmptyState title="暂无数据" description="启动 API 服务后数据将在此显示。" />;
 
-  const { statistics, recent_decisions, active_goals, pending_tasks } = data;
+  const { statistics, recentDecisions, activeGoals, pendingTasks } = data;
 
   const statCards = [
-    { title: '活跃目标', value: statistics.total_goals - statistics.achieved_goals, icon: <AimOutlined />, color: token.colorPrimary },
-    { title: '已达成', value: statistics.achieved_goals, icon: <CheckCircleOutlined />, color: token.colorSuccess },
-    { title: '待办任务', value: statistics.pending_tasks, icon: <UnorderedListOutlined />, color: token.colorWarning },
-    { title: '未解决风险', value: statistics.open_risks, icon: <WarningOutlined />, color: token.colorError },
-    { title: '技术债', value: statistics.tech_debt_items, icon: <ThunderboltOutlined />, color: '#fa8c16' },
+    { title: '活跃目标', value: statistics.totalGoals - statistics.achievedGoals, icon: <AimOutlined />, color: token.colorPrimary },
+    { title: '已达成', value: statistics.achievedGoals, icon: <CheckCircleOutlined />, color: token.colorSuccess },
+    { title: '待办任务', value: statistics.pendingTasks, icon: <UnorderedListOutlined />, color: token.colorWarning },
+    { title: '未解决风险', value: statistics.openRisks, icon: <WarningOutlined />, color: token.colorError },
+    { title: '技术债', value: statistics.techDebtItems, icon: <ThunderboltOutlined />, color: '#fa8c16' },
   ];
 
   // Combine recent items for activity feed
   const recentItems = [
-    ...recent_decisions.map(n => n),
-    ...active_goals.slice(0, 3),
-    ...pending_tasks.slice(0, 3),
+    ...recentDecisions,
+    ...activeGoals.slice(0, 3),
+    ...pendingTasks.slice(0, 3),
   ]
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 8);
 
   return (
@@ -74,7 +74,7 @@ export function OverviewView() {
                   <NodeTypeBadge type={item.type} />
                   <Typography.Text ellipsis style={{ flex: 1 }}>{item.title}</Typography.Text>
                   <StatusBadge status={item.status} />
-                  <TimeAgo date={item.updated_at} />
+                  <TimeAgo date={item.updatedAt} />
                 </div>
               </List.Item>
             )}
