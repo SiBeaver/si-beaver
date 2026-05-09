@@ -1,7 +1,10 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { resolve } from 'path';
 import { homedir } from 'os';
+import { existsSync } from 'fs';
 import type { OperationContext } from '../operations/context.js';
 import {
   defineGoal, decomposeGoal, updateGoalStatus,
@@ -28,6 +31,7 @@ const manager = new ProjectManager(BASE_PATH);
 
 const app = new Hono();
 
+app.use('/api/*', cors());
 /** 统一响应：将 snake_case 转为 camelCase */
 function json(c: any, data: unknown, status?: number) {
   return c.json(snakeToCamel(data), status);
@@ -340,25 +344,16 @@ app.post('/api/v1/operations/:name', async (c) => {
 });
 
 // ============================================================
-// 静态文件服务 — 生产环境 serve 前端 SPA
+// 生产环境：托管前端静态文件
 // ============================================================
 
-import { serveStatic } from '@hono/node-server/serve-static';
-import { readFileSync, existsSync } from 'fs';
-import { resolve as resolvePath, dirname } from 'path';
-import { fileURLToPath } from 'url';
+const WEB_DIST = resolve(import.meta.dirname ?? '.', '../../web/dist');
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const webDist = resolvePath(__dirname, '../../web/dist');
-
-if (existsSync(webDist)) {
-  // Serve static assets
-  app.use('*', serveStatic({ root: webDist, rewriteRequestPath: (p) => p }));
-  // SPA fallback — non-API, non-asset routes get index.html
-  app.get('*', (c) => {
-    const html = readFileSync(resolvePath(webDist, 'index.html'), 'utf-8');
-    return c.html(html);
-  });
+if (existsSync(WEB_DIST)) {
+  app.use('/*', serveStatic({ root: WEB_DIST }));
+  // SPA fallback: 非 API 路由返回 index.html
+  app.get('*', serveStatic({ root: WEB_DIST, path: '/index.html' }));
+  console.log(`Serving frontend from ${WEB_DIST}`);
 }
 
 // ============================================================
