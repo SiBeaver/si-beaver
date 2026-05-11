@@ -12,7 +12,7 @@ export const GOAL_TRANSITIONS: TransitionMap<GoalStatus> = {
 };
 
 export const TASK_TRANSITIONS: TransitionMap<TaskStatus> = {
-  proposed: ['ready', 'cancelled'],
+  proposed: ['ready', 'in_progress', 'cancelled'],
   ready: ['in_progress', 'cancelled'],
   in_progress: ['done', 'cancelled'],
 };
