@@ -1,0 +1,655 @@
+/**
+ * Shared MCP tool registration.
+ * Registers all si-beaver tools onto a given McpServer instance.
+ *
+ * Two modes:
+ * - "scoped": tools operate on a fixed project context (no project param exposed)
+ * - "global": tools expose an optional project param (for stdio/multi-project clients)
+ */
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
+import {
+  defineGoal, decomposeGoal, updateGoalStatus,
+  beginExploration, recordExplorationFinding, concludeExploration, abandonExploration,
+  recordDecision,
+  createTask, updateTaskStatus,
+  identifyRisk, updateRisk, registerTechDebt,
+  recordKnowledge,
+  linkNodes, getProjectState, getNodeContext,
+  getRoadmap, goalProgress, decisionTrail, knowledgeMap,
+  staleItems, currentBlockers, recentActivity, fullTextSearch,
+} from '../operations/index.js';
+import type { OperationContext } from '../operations/context.js';
+import type { ProjectManager } from '../projects/index.js';
+
+// ============================================================
+// Types
+// ============================================================
+
+export interface ScopedToolsOptions {
+  mode: 'scoped';
+  getContext: () => OperationContext;
+  /** Expose project info tool showing current slug */
+  slug: string;
+}
+
+export interface GlobalToolsOptions {
+  mode: 'global';
+  manager: ProjectManager;
+}
+
+export type RegisterToolsOptions = ScopedToolsOptions | GlobalToolsOptions;
+
+// ============================================================
+// Registration
+// ============================================================
+
+export function registerTools(server: McpServer, opts: RegisterToolsOptions): void {
+  if (opts.mode === 'global') {
+    registerGlobalTools(server, opts.manager);
+  } else {
+    registerScopedTools(server, opts.getContext, opts.slug);
+  }
+}
+
+// ============================================================
+// Scoped mode — tools bound to a single project
+// ============================================================
+
+function registerScopedTools(server: McpServer, getCtx: () => OperationContext, slug: string): void {
+  // --- 项目信息 ---
+  server.tool('get_project_info', '获取当前绑定的项目信息', {}, async () => {
+    return { content: [{ type: 'text', text: JSON.stringify({ slug, message: `此连接绑定项目 "${slug}"` }, null, 2) }] };
+  });
+
+  // --- 目标 ---
+  server.tool('define_goal', '定义一个项目目标', {
+    title: z.string().describe('目标标题'),
+    description: z.string().optional().describe('详细描述'),
+    horizon: z.enum(['short', 'medium', 'long']).describe('时间范围'),
+    success_criteria: z.array(z.string()).optional().describe('成功标准'),
+    priority: z.enum(['critical', 'high', 'medium', 'low']).describe('优先级'),
+    parent_goal: z.string().optional().describe('父目标 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(defineGoal(getCtx(), args), null, 2) }] };
+  });
+
+  server.tool('decompose_goal', '将目标分解为子目标、任务和需要的探索', {
+    goal_id: z.string().describe('要分解的目标 ID'),
+    sub_goals: z.array(z.object({
+      title: z.string(), description: z.string().optional(),
+      horizon: z.enum(['short', 'medium', 'long']),
+      success_criteria: z.array(z.string()).optional(),
+      priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
+    })).optional().describe('子目标列表'),
+    tasks: z.array(z.object({
+      title: z.string(), description: z.string().optional(),
+      effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
+      priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
+      acceptance_criteria: z.array(z.string()).optional(),
+    })).optional().describe('任务列表'),
+    explorations_needed: z.array(z.object({
+      topic: z.string(), reason: z.string(), hypothesis: z.string().optional(),
+    })).optional().describe('需要的探索'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(decomposeGoal(getCtx(), args), null, 2) }] };
+  });
+
+  server.tool('update_goal_status', '更新目标状态', {
+    goal_id: z.string().describe('目标 ID'),
+    new_status: z.enum(['active', 'achieved', 'abandoned', 'deferred']).describe('新状态'),
+    reason: z.string().describe('变更原因'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(updateGoalStatus(getCtx(), args), null, 2) }] };
+  });
+
+  // --- 探索 ---
+  server.tool('begin_exploration', '开始一个探索性调查', {
+    topic: z.string().describe('探索主题'),
+    hypothesis: z.string().optional().describe('假设'),
+    reason: z.string().describe('为什么要探索'),
+    approach: z.string().optional().describe('探索方法'),
+    related_goals: z.array(z.string()).optional().describe('关联目标 ID'),
+    triggered_by: z.string().optional().describe('触发此探索的节点 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(beginExploration(getCtx(), args), null, 2) }] };
+  });
+
+  server.tool('record_exploration_finding', '记录探索过程中的发现', {
+    exploration_id: z.string().describe('探索 ID'),
+    finding: z.string().describe('发现内容'),
+    significance: z.enum(['minor', 'major', 'breakthrough']).describe('重要程度'),
+    related_nodes: z.array(z.string()).optional().describe('关联节点 ID'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(recordExplorationFinding(getCtx(), args), null, 2) }] };
+  });
+
+  server.tool('conclude_exploration', '结论化探索，产出决策/知识/后续任务', {
+    exploration_id: z.string().describe('探索 ID'),
+    conclusion: z.string().describe('结论'),
+    outcome: z.enum(['validated', 'invalidated', 'partial', 'inconclusive']).describe('结果类型'),
+    decisions: z.array(z.object({
+      title: z.string(), context: z.string().optional(),
+      rationale: z.string(), consequences: z.array(z.string()).optional(),
+    })).optional().describe('产出的决策'),
+    knowledge: z.array(z.object({
+      title: z.string(), domain: z.string(),
+      description: z.string(), confidence: z.enum(['low', 'medium', 'high']).optional(),
+    })).optional().describe('产出的知识'),
+    follow_up_tasks: z.array(z.object({
+      title: z.string(), description: z.string().optional(),
+      effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
+    })).optional().describe('后续任务'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(concludeExploration(getCtx(), args), null, 2) }] };
+  });
+
+  server.tool('abandon_exploration', '放弃探索', {
+    exploration_id: z.string().describe('探索 ID'),
+    reason: z.string().describe('放弃原因'),
+    learnings: z.string().optional().describe('尽管失败但学到的东西'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(abandonExploration(getCtx(), args), null, 2) }] };
+  });
+
+  // --- 决策 ---
+  server.tool('record_decision', '记录一个架构/设计决策', {
+    title: z.string().describe('决策标题'),
+    context: z.string().describe('促使决策的情境'),
+    rationale: z.string().describe('为什么这样决定'),
+    alternatives_considered: z.array(z.object({
+      option: z.string(), pros: z.array(z.string()).optional(),
+      cons: z.array(z.string()).optional(), reason_rejected: z.string(),
+    })).optional().describe('考虑过的备选方案'),
+    consequences: z.array(z.string()).optional().describe('接受的代价'),
+    related_goals: z.array(z.string()).optional().describe('关联目标'),
+    related_explorations: z.array(z.string()).optional().describe('关联探索'),
+    supersedes: z.string().optional().describe('取代的旧决策 ID'),
+    risks_created: z.array(z.object({
+      title: z.string(), description: z.string(),
+      likelihood: z.enum(['low', 'medium', 'high']),
+      impact: z.enum(['low', 'medium', 'high', 'critical']),
+    })).optional().describe('此决策引入的风险'),
+    tech_debt_created: z.array(z.object({
+      title: z.string(), description: z.string(),
+      severity: z.enum(['low', 'medium', 'high', 'critical']),
+      affected_area: z.string(), cost_of_delay: z.string(),
+    })).optional().describe('此决策引入的技术债'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(recordDecision(getCtx(), args), null, 2) }] };
+  });
+
+  // --- 任务 ---
+  server.tool('create_task', '创建一个具体任务', {
+    title: z.string().describe('任务标题'),
+    description: z.string().optional().describe('描述'),
+    effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional().describe('工作量'),
+    priority: z.enum(['critical', 'high', 'medium', 'low']).optional().describe('优先级'),
+    acceptance_criteria: z.array(z.string()).optional().describe('验收标准'),
+    parent_goal: z.string().optional().describe('所属目标 ID'),
+    addresses_tech_debt: z.string().optional().describe('解决的技术债 ID'),
+    mitigates_risk: z.string().optional().describe('缓解的风险 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(createTask(getCtx(), args), null, 2) }] };
+  });
+
+  server.tool('update_task_status', '更新任务状态', {
+    task_id: z.string().describe('任务 ID'),
+    new_status: z.enum(['proposed', 'ready', 'in_progress', 'done', 'cancelled']).describe('新状态'),
+    reason: z.string().optional().describe('变更原因'),
+    artifacts: z.array(z.object({
+      title: z.string(),
+      artifact_type: z.enum(['document', 'design', 'pr', 'commit', 'prototype', 'spec', 'other']),
+      uri: z.string().optional(), content_summary: z.string().optional(),
+    })).optional().describe('完成时产出的产物'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(updateTaskStatus(getCtx(), args), null, 2) }] };
+  });
+
+  // --- 风险与技术债 ---
+  server.tool('identify_risk', '识别一个项目风险', {
+    title: z.string().describe('风险标题'),
+    description: z.string().describe('描述'),
+    likelihood: z.enum(['low', 'medium', 'high']).describe('发生概率'),
+    impact: z.enum(['low', 'medium', 'high', 'critical']).describe('影响程度'),
+    trigger_conditions: z.array(z.string()).optional().describe('触发条件'),
+    affected_goals: z.array(z.string()).optional().describe('受影响的目标 ID'),
+    mitigation_strategy: z.string().optional().describe('缓解策略'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(identifyRisk(getCtx(), args), null, 2) }] };
+  });
+
+  server.tool('update_risk', '更新风险状态或评估', {
+    risk_id: z.string().describe('风险 ID'),
+    new_status: z.enum(['identified', 'analyzing', 'mitigated', 'accepted', 'occurred', 'resolved']).optional(),
+    likelihood: z.enum(['low', 'medium', 'high']).optional(),
+    impact: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+    mitigation_strategy: z.string().optional(),
+    reason: z.string().describe('更新原因'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(updateRisk(getCtx(), args), null, 2) }] };
+  });
+
+  server.tool('register_tech_debt', '注册一项技术债', {
+    title: z.string().describe('标题'),
+    description: z.string().describe('描述'),
+    severity: z.enum(['low', 'medium', 'high', 'critical']).describe('严重程度'),
+    affected_area: z.string().describe('受影响区域'),
+    cost_of_delay: z.string().describe('不处理的代价'),
+    resolution_approach: z.string().optional().describe('解决方案'),
+    caused_by: z.string().optional().describe('导致此债务的决策 ID'),
+    blocks: z.array(z.string()).optional().describe('被此债务阻碍的节点 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(registerTechDebt(getCtx(), args), null, 2) }] };
+  });
+
+  // --- 知识 ---
+  server.tool('record_knowledge', '记录一条项目知识', {
+    title: z.string().describe('知识标题'),
+    description: z.string().describe('知识内容'),
+    domain: z.string().describe('所属领域'),
+    confidence: z.enum(['low', 'medium', 'high']).optional().describe('确信程度'),
+    source: z.string().describe('来源'),
+    derived_from: z.array(z.string()).optional().describe('来源节点 ID'),
+    invalidates: z.array(z.string()).optional().describe('被此知识取代的旧知识 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(recordKnowledge(getCtx(), args), null, 2) }] };
+  });
+
+  // --- 图操作 ---
+  server.tool('link_nodes', '在两个节点之间建立语义关系', {
+    source_id: z.string().describe('源节点 ID'),
+    target_id: z.string().describe('目标节点 ID'),
+    relation: z.enum([
+      'decomposes_into', 'spawns', 'produces', 'informs', 'creates',
+      'mitigates', 'addresses', 'blocks', 'relates_to', 'supersedes',
+      'evidenced_by', 'derived_from',
+    ]).describe('关系类型'),
+    annotation: z.string().optional().describe('关系说明'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(linkNodes(getCtx(), args), null, 2) }] };
+  });
+
+  // --- 读操作 ---
+  server.tool('get_project_state', '获取项目认知状态快照', {}, async () => {
+    return { content: [{ type: 'text', text: JSON.stringify(getProjectState(getCtx()), null, 2) }] };
+  });
+
+  server.tool('get_node_context', '获取节点完整上下文', {
+    node_id: z.string().describe('节点 ID'),
+    include_events: z.boolean().optional().describe('是否包含事件历史'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(getNodeContext(getCtx(), args.node_id, args.include_events ?? true), null, 2) }] };
+  });
+
+  server.tool('search_nodes', '全文搜索节点', {
+    query: z.string().describe('搜索关键词'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(getCtx().nodes.search(args.query), null, 2) }] };
+  });
+
+  server.tool('get_roadmap', '获取目标路线图', {
+    root_goal: z.string().optional().describe('根目标 ID'),
+    include_completed: z.boolean().optional().describe('是否包含已完成的目标'),
+    max_depth: z.number().optional().describe('最大展开深度'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(getRoadmap(getCtx(), args), null, 2) }] };
+  });
+
+  server.tool('goal_progress', '获取活跃目标进度', {}, async () => {
+    return { content: [{ type: 'text', text: JSON.stringify(goalProgress(getCtx()), null, 2) }] };
+  });
+
+  server.tool('decision_trail', '追溯决策链', {
+    node_id: z.string().describe('起始节点 ID'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(decisionTrail(getCtx(), args.node_id), null, 2) }] };
+  });
+
+  server.tool('knowledge_map', '按领域查看知识图谱', {
+    domain: z.string().optional().describe('过滤领域'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(knowledgeMap(getCtx(), args.domain), null, 2) }] };
+  });
+
+  server.tool('stale_items', '查找长时间未更新的活跃节点', {
+    days: z.number().optional().describe('超过多少天视为过期，默认 7'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(staleItems(getCtx(), args.days), null, 2) }] };
+  });
+
+  server.tool('current_blockers', '查找阻塞项', {}, async () => {
+    return { content: [{ type: 'text', text: JSON.stringify(currentBlockers(getCtx()), null, 2) }] };
+  });
+
+  server.tool('recent_activity', '获取最近事件', {
+    limit: z.number().optional().describe('返回事件数量，默认 20'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(recentActivity(getCtx(), args.limit), null, 2) }] };
+  });
+
+  server.tool('full_text_search', '全文搜索所有节点', {
+    query: z.string().describe('搜索关键词'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(fullTextSearch(getCtx(), args.query), null, 2) }] };
+  });
+}
+
+// ============================================================
+// Global mode — tools with optional project param (for stdio)
+// ============================================================
+
+function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
+  const projectParam = z.string().optional().describe('项目 slug（默认使用当前默认项目）');
+
+  function ctx(project?: string) {
+    return manager.getContext(project ?? manager.getDefaultProject());
+  }
+
+  // --- 项目管理 ---
+  server.tool('list_projects', '列出所有项目', {}, async () => {
+    return { content: [{ type: 'text', text: JSON.stringify(manager.listProjects(), null, 2) }] };
+  });
+
+  server.tool('create_project', '创建一个新项目', {
+    slug: z.string().describe('项目标识符'),
+    name: z.string().describe('项目显示名称'),
+    description: z.string().optional().describe('项目描述'),
+  }, async (args) => {
+    return { content: [{ type: 'text', text: JSON.stringify(manager.createProject(args), null, 2) }] };
+  });
+
+  server.tool('set_default_project', '设置默认项目', {
+    slug: z.string().describe('项目 slug'),
+  }, async (args) => {
+    manager.setDefaultProject(args.slug);
+    return { content: [{ type: 'text', text: `Default project set to "${args.slug}"` }] };
+  });
+
+  server.tool('get_current_project', '获取当前默认项目', {}, async () => {
+    const slug = manager.getDefaultProject();
+    const project = manager.getProject(slug);
+    return { content: [{ type: 'text', text: JSON.stringify({ slug, project }, null, 2) }] };
+  });
+
+  // --- 目标 ---
+  server.tool('define_goal', '定义一个项目目标', {
+    project: projectParam,
+    title: z.string().describe('目标标题'),
+    description: z.string().optional().describe('详细描述'),
+    horizon: z.enum(['short', 'medium', 'long']).describe('时间范围'),
+    success_criteria: z.array(z.string()).optional().describe('成功标准'),
+    priority: z.enum(['critical', 'high', 'medium', 'low']).describe('优先级'),
+    parent_goal: z.string().optional().describe('父目标 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(defineGoal(ctx(project), args), null, 2) }] };
+  });
+
+  server.tool('decompose_goal', '将目标分解为子目标、任务和需要的探索', {
+    project: projectParam,
+    goal_id: z.string().describe('要分解的目标 ID'),
+    sub_goals: z.array(z.object({
+      title: z.string(), description: z.string().optional(),
+      horizon: z.enum(['short', 'medium', 'long']),
+      success_criteria: z.array(z.string()).optional(),
+      priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
+    })).optional().describe('子目标列表'),
+    tasks: z.array(z.object({
+      title: z.string(), description: z.string().optional(),
+      effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
+      priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
+      acceptance_criteria: z.array(z.string()).optional(),
+    })).optional().describe('任务列表'),
+    explorations_needed: z.array(z.object({
+      topic: z.string(), reason: z.string(), hypothesis: z.string().optional(),
+    })).optional().describe('需要的探索'),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(decomposeGoal(ctx(project), args), null, 2) }] };
+  });
+
+  server.tool('update_goal_status', '更新目标状态', {
+    project: projectParam,
+    goal_id: z.string().describe('目标 ID'),
+    new_status: z.enum(['active', 'achieved', 'abandoned', 'deferred']).describe('新状态'),
+    reason: z.string().describe('变更原因'),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(updateGoalStatus(ctx(project), args), null, 2) }] };
+  });
+
+  // --- 探索 ---
+  server.tool('begin_exploration', '开始一个探索性调查', {
+    project: projectParam,
+    topic: z.string().describe('探索主题'),
+    hypothesis: z.string().optional().describe('假设'),
+    reason: z.string().describe('为什么要探索'),
+    approach: z.string().optional().describe('探索方法'),
+    related_goals: z.array(z.string()).optional().describe('关联目标 ID'),
+    triggered_by: z.string().optional().describe('触发此探索的节点 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(beginExploration(ctx(project), args), null, 2) }] };
+  });
+
+  server.tool('record_exploration_finding', '记录探索过程中的发现', {
+    project: projectParam,
+    exploration_id: z.string().describe('探索 ID'),
+    finding: z.string().describe('发现内容'),
+    significance: z.enum(['minor', 'major', 'breakthrough']).describe('重要程度'),
+    related_nodes: z.array(z.string()).optional().describe('关联节点 ID'),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(recordExplorationFinding(ctx(project), args), null, 2) }] };
+  });
+
+  server.tool('conclude_exploration', '结论化探索', {
+    project: projectParam,
+    exploration_id: z.string().describe('探索 ID'),
+    conclusion: z.string().describe('结论'),
+    outcome: z.enum(['validated', 'invalidated', 'partial', 'inconclusive']).describe('结果类型'),
+    decisions: z.array(z.object({
+      title: z.string(), context: z.string().optional(),
+      rationale: z.string(), consequences: z.array(z.string()).optional(),
+    })).optional().describe('产出的决策'),
+    knowledge: z.array(z.object({
+      title: z.string(), domain: z.string(),
+      description: z.string(), confidence: z.enum(['low', 'medium', 'high']).optional(),
+    })).optional().describe('产出的知识'),
+    follow_up_tasks: z.array(z.object({
+      title: z.string(), description: z.string().optional(),
+      effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
+    })).optional().describe('后续任务'),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(concludeExploration(ctx(project), args), null, 2) }] };
+  });
+
+  server.tool('abandon_exploration', '放弃探索', {
+    project: projectParam,
+    exploration_id: z.string().describe('探索 ID'),
+    reason: z.string().describe('放弃原因'),
+    learnings: z.string().optional().describe('学到的东西'),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(abandonExploration(ctx(project), args), null, 2) }] };
+  });
+
+  // --- 决策 ---
+  server.tool('record_decision', '记录架构/设计决策', {
+    project: projectParam,
+    title: z.string().describe('决策标题'),
+    context: z.string().describe('情境'),
+    rationale: z.string().describe('理由'),
+    alternatives_considered: z.array(z.object({
+      option: z.string(), pros: z.array(z.string()).optional(),
+      cons: z.array(z.string()).optional(), reason_rejected: z.string(),
+    })).optional().describe('备选方案'),
+    consequences: z.array(z.string()).optional().describe('代价'),
+    related_goals: z.array(z.string()).optional(),
+    related_explorations: z.array(z.string()).optional(),
+    supersedes: z.string().optional(),
+    risks_created: z.array(z.object({
+      title: z.string(), description: z.string(),
+      likelihood: z.enum(['low', 'medium', 'high']),
+      impact: z.enum(['low', 'medium', 'high', 'critical']),
+    })).optional(),
+    tech_debt_created: z.array(z.object({
+      title: z.string(), description: z.string(),
+      severity: z.enum(['low', 'medium', 'high', 'critical']),
+      affected_area: z.string(), cost_of_delay: z.string(),
+    })).optional(),
+    tags: z.array(z.string()).optional(),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(recordDecision(ctx(project), args), null, 2) }] };
+  });
+
+  // --- 任务 ---
+  server.tool('create_task', '创建任务', {
+    project: projectParam,
+    title: z.string().describe('任务标题'),
+    description: z.string().optional(),
+    effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
+    priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
+    acceptance_criteria: z.array(z.string()).optional(),
+    parent_goal: z.string().optional(),
+    addresses_tech_debt: z.string().optional(),
+    mitigates_risk: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(createTask(ctx(project), args), null, 2) }] };
+  });
+
+  server.tool('update_task_status', '更新任务状态', {
+    project: projectParam,
+    task_id: z.string().describe('任务 ID'),
+    new_status: z.enum(['proposed', 'ready', 'in_progress', 'done', 'cancelled']).describe('新状态'),
+    reason: z.string().optional(),
+    artifacts: z.array(z.object({
+      title: z.string(),
+      artifact_type: z.enum(['document', 'design', 'pr', 'commit', 'prototype', 'spec', 'other']),
+      uri: z.string().optional(), content_summary: z.string().optional(),
+    })).optional(),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(updateTaskStatus(ctx(project), args), null, 2) }] };
+  });
+
+  // --- 风险与技术债 ---
+  server.tool('identify_risk', '识别风险', {
+    project: projectParam,
+    title: z.string(), description: z.string(),
+    likelihood: z.enum(['low', 'medium', 'high']),
+    impact: z.enum(['low', 'medium', 'high', 'critical']),
+    trigger_conditions: z.array(z.string()).optional(),
+    affected_goals: z.array(z.string()).optional(),
+    mitigation_strategy: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(identifyRisk(ctx(project), args), null, 2) }] };
+  });
+
+  server.tool('update_risk', '更新风险', {
+    project: projectParam,
+    risk_id: z.string(), reason: z.string(),
+    new_status: z.enum(['identified', 'analyzing', 'mitigated', 'accepted', 'occurred', 'resolved']).optional(),
+    likelihood: z.enum(['low', 'medium', 'high']).optional(),
+    impact: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+    mitigation_strategy: z.string().optional(),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(updateRisk(ctx(project), args), null, 2) }] };
+  });
+
+  server.tool('register_tech_debt', '注册技术债', {
+    project: projectParam,
+    title: z.string(), description: z.string(),
+    severity: z.enum(['low', 'medium', 'high', 'critical']),
+    affected_area: z.string(), cost_of_delay: z.string(),
+    resolution_approach: z.string().optional(),
+    caused_by: z.string().optional(),
+    blocks: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(registerTechDebt(ctx(project), args), null, 2) }] };
+  });
+
+  // --- 知识 ---
+  server.tool('record_knowledge', '记录知识', {
+    project: projectParam,
+    title: z.string(), description: z.string(),
+    domain: z.string(), source: z.string(),
+    confidence: z.enum(['low', 'medium', 'high']).optional(),
+    derived_from: z.array(z.string()).optional(),
+    invalidates: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(recordKnowledge(ctx(project), args), null, 2) }] };
+  });
+
+  // --- 图操作 ---
+  server.tool('link_nodes', '建立节点间关系', {
+    project: projectParam,
+    source_id: z.string(), target_id: z.string(),
+    relation: z.enum([
+      'decomposes_into', 'spawns', 'produces', 'informs', 'creates',
+      'mitigates', 'addresses', 'blocks', 'relates_to', 'supersedes',
+      'evidenced_by', 'derived_from',
+    ]),
+    annotation: z.string().optional(),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(linkNodes(ctx(project), args), null, 2) }] };
+  });
+
+  // --- 读操作 ---
+  server.tool('get_project_state', '获取项目认知状态快照', { project: projectParam }, async ({ project }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(getProjectState(ctx(project)), null, 2) }] };
+  });
+
+  server.tool('get_node_context', '获取节点完整上下文', {
+    project: projectParam, node_id: z.string(),
+    include_events: z.boolean().optional(),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(getNodeContext(ctx(project), args.node_id, args.include_events ?? true), null, 2) }] };
+  });
+
+  server.tool('search_nodes', '全文搜索节点', { project: projectParam, query: z.string() }, async ({ project, query }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(ctx(project).nodes.search(query), null, 2) }] };
+  });
+
+  server.tool('get_roadmap', '获取路线图', {
+    project: projectParam, root_goal: z.string().optional(),
+    include_completed: z.boolean().optional(), max_depth: z.number().optional(),
+  }, async ({ project, ...args }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(getRoadmap(ctx(project), args), null, 2) }] };
+  });
+
+  server.tool('goal_progress', '获取目标进度', { project: projectParam }, async ({ project }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(goalProgress(ctx(project)), null, 2) }] };
+  });
+
+  server.tool('decision_trail', '追溯决策链', { project: projectParam, node_id: z.string() }, async ({ project, node_id }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(decisionTrail(ctx(project), node_id), null, 2) }] };
+  });
+
+  server.tool('knowledge_map', '查看知识图谱', { project: projectParam, domain: z.string().optional() }, async ({ project, domain }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(knowledgeMap(ctx(project), domain), null, 2) }] };
+  });
+
+  server.tool('stale_items', '查找过期节点', { project: projectParam, days: z.number().optional() }, async ({ project, days }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(staleItems(ctx(project), days), null, 2) }] };
+  });
+
+  server.tool('current_blockers', '查找阻塞项', { project: projectParam }, async ({ project }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(currentBlockers(ctx(project)), null, 2) }] };
+  });
+
+  server.tool('recent_activity', '获取最近事件', { project: projectParam, limit: z.number().optional() }, async ({ project, limit }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(recentActivity(ctx(project), limit), null, 2) }] };
+  });
+
+  server.tool('full_text_search', '全文搜索', { project: projectParam, query: z.string() }, async ({ project, query }) => {
+    return { content: [{ type: 'text', text: JSON.stringify(fullTextSearch(ctx(project), query), null, 2) }] };
+  });
+}

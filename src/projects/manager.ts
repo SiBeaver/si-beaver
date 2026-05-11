@@ -57,6 +57,17 @@ export class ProjectManager {
     return result;
   }
 
+  /**
+   * Returns existing project or auto-creates it (for MCP auto-registration).
+   * Uses slug as the display name if creating.
+   */
+  ensureProject(slug: string): ProjectMeta {
+    validateSlug(slug);
+    const existing = this.registry.getProject(slug);
+    if (existing) return existing;
+    return this.registry.insertProject({ slug, name: slug });
+  }
+
   archiveProject(slug: string): void {
     this.registry.archiveProject(slug);
     this.contexts.delete(slug);

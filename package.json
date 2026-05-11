@@ -13,7 +13,7 @@
     "test": "vitest",
     "lint": "tsc --noEmit",
     "mcp": "tsx src/mcp/server.ts",
-    "api": "tsx src/api/server.ts"
+    "start": "tsx src/api/server.ts"
   },
   "keywords": [
     "ai-native",

@@ -1,10 +1,12 @@
+import { createServer } from 'node:http';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { serve } from '@hono/node-server';
+import { getRequestListener } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { resolve } from 'path';
 import { homedir } from 'os';
 import { existsSync } from 'fs';
+import { handleMcpRequest, sessions as mcpSessions } from '../mcp/http-server.js';
 import type { OperationContext } from '../operations/context.js';
 import {
   defineGoal, decomposeGoal, updateGoalStatus,
@@ -357,13 +359,43 @@ if (existsSync(WEB_DIST)) {
 }
 
 // ============================================================
-// 启动
+// 启动 — 统一 HTTP server（REST + MCP 合并）
 // ============================================================
 
 const PORT = Number(process.env.SI_BEAVER_PORT) || 7420;
 
-serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`si-beaver REST API running at http://localhost:${info.port} (multi-project)`);
+const honoListener = getRequestListener(app.fetch);
+
+const httpServer = createServer(async (req, res) => {
+  const pathname = req.url?.split('?')[0] ?? '/';
+
+  // CORS preflight for MCP routes
+  if (pathname.startsWith('/mcp/') && req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  // MCP routes: /mcp/{slug}
+  if (pathname.startsWith('/mcp/')) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    const handled = await handleMcpRequest(req, res, manager);
+    if (handled) return;
+  }
+
+  // Everything else → Hono (REST API + static files)
+  honoListener(req, res);
+});
+
+httpServer.listen(PORT, () => {
+  console.log(`si-beaver running at http://localhost:${PORT} (REST + MCP unified)`);
+  console.log(`  REST API: http://localhost:${PORT}/api/v1/...`);
+  console.log(`  MCP:      http://localhost:${PORT}/mcp/{slug}`);
 });
 
 export { app };
