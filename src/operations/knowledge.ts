@@ -18,7 +18,7 @@ export interface RecordKnowledgeInput {
   tags?: string[];
 }
 
-export function recordKnowledge(ctx: OperationContext, input: RecordKnowledgeInput) {
+export async function recordKnowledge(ctx: OperationContext, input: RecordKnowledgeInput) {
   const now = new Date().toISOString();
   const knowledge: KnowledgeNode = {
     id: ulid(),
@@ -36,7 +36,7 @@ export function recordKnowledge(ctx: OperationContext, input: RecordKnowledgeInp
     valid_until: null,
   };
 
-  ctx.nodes.insert(knowledge);
+  await ctx.nodes.insert(knowledge);
   const edges_created: Edge[] = [];
   const invalidated_nodes: KnowledgeNode[] = [];
 
@@ -46,28 +46,28 @@ export function recordKnowledge(ctx: OperationContext, input: RecordKnowledgeInp
       id: ulid(), source_id: fromId, target_id: knowledge.id,
       relation: 'produces', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
   // 取代旧知识
   for (const oldId of input.invalidates ?? []) {
-    const oldNode = ctx.nodes.getById(oldId);
+    const oldNode = await ctx.nodes.getById(oldId);
     if (oldNode && oldNode.type === 'knowledge') {
       const updated = { ...oldNode as KnowledgeNode, status: 'outdated' as const, updated_at: now };
-      ctx.nodes.update(updated);
+      await ctx.nodes.update(updated);
       invalidated_nodes.push(updated);
 
       const edge: Edge = {
         id: ulid(), source_id: knowledge.id, target_id: oldId,
         relation: 'supersedes', weight: null, annotation: null, created_at: now,
       };
-      ctx.edges.insert(edge);
+      await ctx.edges.insert(edge);
       edges_created.push(edge);
     }
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'knowledge.recorded',
     operation: 'record_knowledge',
     node_id: knowledge.id,

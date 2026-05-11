@@ -4,8 +4,6 @@
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { resolve } from 'path';
-import { homedir } from 'os';
 import { ProjectManager } from '../projects/index.js';
 import { registerTools } from './tools.js';
 
@@ -13,10 +11,7 @@ import { registerTools } from './tools.js';
 // Initialization
 // ============================================================
 
-const BASE_PATH = process.env.SI_BEAVER_HOME
-  ?? resolve(homedir(), '.si-beaver');
-
-const manager = new ProjectManager(BASE_PATH);
+const manager = new ProjectManager();
 
 const server = new McpServer({
   name: 'si-beaver',
@@ -30,6 +25,7 @@ registerTools(server, { mode: 'global', manager });
 // ============================================================
 
 async function main() {
+  await manager.init();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('si-beaver MCP server started (stdio, multi-project)');

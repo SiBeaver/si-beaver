@@ -15,11 +15,11 @@ export interface LinkNodesInput {
   annotation?: string;
 }
 
-export function linkNodes(ctx: OperationContext, input: LinkNodesInput) {
-  const source = ctx.nodes.getById(input.source_id);
+export async function linkNodes(ctx: OperationContext, input: LinkNodesInput) {
+  const source = await ctx.nodes.getById(input.source_id);
   if (!source) throw new Error(`Source node not found: ${input.source_id}`);
 
-  const target = ctx.nodes.getById(input.target_id);
+  const target = await ctx.nodes.getById(input.target_id);
   if (!target) throw new Error(`Target node not found: ${input.target_id}`);
 
   if (!validateRelation(input.relation, source.type as NodeType, target.type as NodeType)) {
@@ -39,9 +39,9 @@ export function linkNodes(ctx: OperationContext, input: LinkNodesInput) {
     created_at: now,
   };
 
-  ctx.edges.insert(edge);
+  await ctx.edges.insert(edge);
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'graph.edge_created',
     operation: 'link_nodes',
     node_id: input.source_id,
@@ -60,14 +60,14 @@ export function linkNodes(ctx: OperationContext, input: LinkNodesInput) {
 // get_project_state — 获取项目状态
 // ============================================================
 
-export function getProjectState(ctx: OperationContext) {
-  const goals = ctx.nodes.getByType('goal');
+export async function getProjectState(ctx: OperationContext) {
+  const goals = await ctx.nodes.getByType('goal');
   const active_goals = goals.filter(g => g.status === 'active');
-  const explorations = ctx.nodes.getByTypeAndStatus('exploration', 'active');
-  const recent_decisions = ctx.nodes.getByType('decision').slice(-10);
-  const open_risks = ctx.nodes.getByType('risk').filter(r => !['resolved', 'accepted'].includes(r.status));
-  const tech_debt = ctx.nodes.getByType('tech_debt').filter(td => td.status !== 'resolved');
-  const tasks = ctx.nodes.getByType('task');
+  const explorations = await ctx.nodes.getByTypeAndStatus('exploration', 'active');
+  const recent_decisions = (await ctx.nodes.getByType('decision')).slice(-10);
+  const open_risks = (await ctx.nodes.getByType('risk')).filter(r => !['resolved', 'accepted'].includes(r.status));
+  const tech_debt = (await ctx.nodes.getByType('tech_debt')).filter(td => td.status !== 'resolved');
+  const tasks = await ctx.nodes.getByType('task');
   const pending_tasks = tasks.filter(t => !['done', 'cancelled'].includes(t.status));
 
   return {
@@ -92,23 +92,23 @@ export function getProjectState(ctx: OperationContext) {
 // get_node_context — 获取节点上下文
 // ============================================================
 
-export function getNodeContext(ctx: OperationContext, nodeId: string, includeEvents = true) {
-  const node = ctx.nodes.getById(nodeId);
+export async function getNodeContext(ctx: OperationContext, nodeId: string, includeEvents = true) {
+  const node = await ctx.nodes.getById(nodeId);
   if (!node) throw new Error(`Node not found: ${nodeId}`);
 
-  const edges = ctx.edges.getByNode(nodeId);
+  const edges = await ctx.edges.getByNode(nodeId);
   const neighborIds = new Set<string>();
   for (const e of edges) {
     if (e.source_id !== nodeId) neighborIds.add(e.source_id);
     if (e.target_id !== nodeId) neighborIds.add(e.target_id);
   }
 
-  const neighbors = [...neighborIds]
-    .map(id => ctx.nodes.getById(id))
-    .filter(Boolean);
+  const neighbors = (await Promise.all(
+    [...neighborIds].map(id => ctx.nodes.getById(id))
+  )).filter(Boolean);
 
   const events = includeEvents
-    ? ctx.eventStore.getByNode(nodeId)
+    ? await ctx.eventStore.getByNode(nodeId)
     : [];
 
   return { node, edges, neighbors, events };
@@ -118,18 +118,18 @@ export function getNodeContext(ctx: OperationContext, nodeId: string, includeEve
 // get_task_context — subagent 友好的任务上下文
 // ============================================================
 
-export function getTaskContext(ctx: OperationContext, taskId: string) {
-  const task = ctx.nodes.getById(taskId);
+export async function getTaskContext(ctx: OperationContext, taskId: string) {
+  const task = await ctx.nodes.getById(taskId);
   if (!task) throw new Error(`Task not found: ${taskId}`);
   if (task.type !== 'task') throw new Error(`Node ${taskId} is not a task (got ${task.type})`);
 
-  const edges = ctx.edges.getByNode(taskId);
+  const edges = await ctx.edges.getByNode(taskId);
 
   // Find parent goal (task is target of decomposes_into)
   let parent_goal = null;
   for (const e of edges) {
     if (e.relation === 'decomposes_into' && e.target_id === taskId) {
-      const node = ctx.nodes.getById(e.source_id);
+      const node = await ctx.nodes.getById(e.source_id);
       if (node?.type === 'goal') { parent_goal = node; break; }
     }
   }
@@ -147,7 +147,7 @@ export function getTaskContext(ctx: OperationContext, taskId: string) {
   }
 
   for (const id of neighborIds) {
-    const node = ctx.nodes.getById(id);
+    const node = await ctx.nodes.getById(id);
     if (!node) continue;
     switch (node.type) {
       case 'decision': related_decisions.push(node); break;
@@ -158,7 +158,7 @@ export function getTaskContext(ctx: OperationContext, taskId: string) {
   }
 
   // Recent events on this task
-  const events = ctx.eventStore.getByNode(taskId).slice(-10);
+  const events = (await ctx.eventStore.getByNode(taskId)).slice(-10);
 
   return {
     task,

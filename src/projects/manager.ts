@@ -1,83 +1,76 @@
-import { resolve } from 'path';
-import { homedir } from 'os';
-import { openDatabase } from '../storage/db.js';
+import { getPool, type Sql } from '../storage/db.js';
 import { OperationContext } from '../operations/context.js';
 import { Registry } from './registry.js';
-import { runMigration } from './migrate.js';
 import type { ProjectMeta, CreateProjectInput, UpdateProjectInput } from './types.js';
 
 const SLUG_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 
 export class ProjectManager {
-  private basePath: string;
-  private registry: Registry;
+  private sql!: Sql;
+  private registry!: Registry;
   private contexts = new Map<string, OperationContext>();
+  private initialized = false;
 
-  constructor(basePath?: string) {
-    this.basePath = basePath ?? resolve(homedir(), '.si-beaver');
-    runMigration(this.basePath);
-    this.registry = new Registry(resolve(this.basePath, 'registry.db'));
+  async init(): Promise<void> {
+    if (this.initialized) return;
+    this.sql = await getPool();
+    this.registry = new Registry(this.sql);
+    this.initialized = true;
   }
 
   getContext(slug: string): OperationContext {
     const existing = this.contexts.get(slug);
     if (existing) return existing;
-
-    const project = this.registry.getProject(slug);
-    if (!project) {
-      throw new Error(`Project "${slug}" not found`);
-    }
-
-    const dbPath = resolve(this.basePath, 'projects', slug, 'cognition.db');
-    const db = openDatabase(dbPath);
-    const ctx = new OperationContext(db);
+    const ctx = new OperationContext(this.sql, slug);
     this.contexts.set(slug, ctx);
     return ctx;
   }
 
-  createProject(input: CreateProjectInput): ProjectMeta {
+  async createProject(input: CreateProjectInput): Promise<ProjectMeta> {
     validateSlug(input.slug);
-    if (this.registry.getProject(input.slug)) {
+    const existing = await this.registry.getProject(input.slug);
+    if (existing) {
       throw new Error(`Project "${input.slug}" already exists`);
     }
     return this.registry.insertProject(input);
   }
 
-  listProjects(): ProjectMeta[] {
+  async listProjects(): Promise<ProjectMeta[]> {
     return this.registry.listProjects();
   }
 
-  getProject(slug: string): ProjectMeta | null {
+  async getProject(slug: string): Promise<ProjectMeta | null> {
     return this.registry.getProject(slug);
   }
 
-  updateProject(slug: string, patch: UpdateProjectInput): ProjectMeta {
-    const result = this.registry.updateProject(slug, patch);
+  async updateProject(slug: string, patch: UpdateProjectInput): Promise<ProjectMeta> {
+    const result = await this.registry.updateProject(slug, patch);
     if (!result) throw new Error(`Project "${slug}" not found`);
     return result;
   }
 
-  archiveProject(slug: string): void {
-    this.registry.archiveProject(slug);
+  async archiveProject(slug: string): Promise<void> {
+    await this.registry.archiveProject(slug);
     this.contexts.delete(slug);
   }
 
-  getDefaultProject(): string {
+  async getDefaultProject(): Promise<string> {
     return process.env.SI_BEAVER_DEFAULT_PROJECT
-      ?? this.registry.getConfig('default_project')
+      ?? await this.registry.getConfig('default_project')
       ?? 'default';
   }
 
-  setDefaultProject(slug: string): void {
-    if (!this.registry.getProject(slug)) {
+  async setDefaultProject(slug: string): Promise<void> {
+    const project = await this.registry.getProject(slug);
+    if (!project) {
       throw new Error(`Project "${slug}" not found`);
     }
-    this.registry.setConfig('default_project', slug);
+    await this.registry.setConfig('default_project', slug);
   }
 
-  close(): void {
+  async close(): Promise<void> {
     this.contexts.clear();
-    this.registry.close();
+    await this.registry.close();
   }
 }
 

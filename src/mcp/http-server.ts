@@ -15,8 +15,8 @@ import { registerTools } from './tools.js';
 // Per-session MCP server factory
 // ============================================================
 
-function createServerForSlug(manager: ProjectManager, slug: string): McpServer | null {
-  const project = manager.getProject(slug);
+async function createServerForSlug(manager: ProjectManager, slug: string): Promise<McpServer | null> {
+  const project = await manager.getProject(slug);
   if (!project) return null;
 
   const server = new McpServer({
@@ -74,7 +74,7 @@ export async function handleMcpRequest(
     if (sessionId && sessions.has(sessionId)) {
       entry = sessions.get(sessionId)!;
     } else if (!sessionId && req.method === 'POST') {
-      const server = createServerForSlug(manager, slug);
+      const server = await createServerForSlug(manager, slug);
       if (!server) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `Project "${slug}" not found. Create it via REST API first.` }));

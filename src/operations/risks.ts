@@ -19,7 +19,7 @@ export interface IdentifyRiskInput {
   tags?: string[];
 }
 
-export function identifyRisk(ctx: OperationContext, input: IdentifyRiskInput) {
+export async function identifyRisk(ctx: OperationContext, input: IdentifyRiskInput) {
   const now = new Date().toISOString();
   const risk: RiskNode = {
     id: ulid(),
@@ -37,7 +37,7 @@ export function identifyRisk(ctx: OperationContext, input: IdentifyRiskInput) {
     trigger_conditions: input.trigger_conditions ?? [],
   };
 
-  ctx.nodes.insert(risk);
+  await ctx.nodes.insert(risk);
   const edges_created: Edge[] = [];
 
   for (const goalId of input.affected_goals ?? []) {
@@ -45,11 +45,11 @@ export function identifyRisk(ctx: OperationContext, input: IdentifyRiskInput) {
       id: ulid(), source_id: risk.id, target_id: goalId,
       relation: 'blocks', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'risk.identified',
     operation: 'identify_risk',
     node_id: risk.id,
@@ -73,8 +73,8 @@ export interface UpdateRiskInput {
   reason: string;
 }
 
-export function updateRisk(ctx: OperationContext, input: UpdateRiskInput) {
-  const node = ctx.nodes.getById(input.risk_id);
+export async function updateRisk(ctx: OperationContext, input: UpdateRiskInput) {
+  const node = await ctx.nodes.getById(input.risk_id);
   if (!node || node.type !== 'risk') {
     throw new Error(`Risk not found: ${input.risk_id}`);
   }
@@ -97,9 +97,9 @@ export function updateRisk(ctx: OperationContext, input: UpdateRiskInput) {
     mitigation_strategy: input.mitigation_strategy ?? risk.mitigation_strategy,
     updated_at: new Date().toISOString(),
   };
-  ctx.nodes.update(updated);
+  await ctx.nodes.update(updated);
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'risk.updated',
     operation: 'update_risk',
     node_id: input.risk_id,
@@ -128,7 +128,7 @@ export interface RegisterTechDebtInput {
   tags?: string[];
 }
 
-export function registerTechDebt(ctx: OperationContext, input: RegisterTechDebtInput) {
+export async function registerTechDebt(ctx: OperationContext, input: RegisterTechDebtInput) {
   const now = new Date().toISOString();
   const techDebt: TechDebtNode = {
     id: ulid(),
@@ -146,7 +146,7 @@ export function registerTechDebt(ctx: OperationContext, input: RegisterTechDebtI
     resolution_approach: input.resolution_approach ?? null,
   };
 
-  ctx.nodes.insert(techDebt);
+  await ctx.nodes.insert(techDebt);
   const edges_created: Edge[] = [];
 
   if (input.caused_by) {
@@ -154,7 +154,7 @@ export function registerTechDebt(ctx: OperationContext, input: RegisterTechDebtI
       id: ulid(), source_id: input.caused_by, target_id: techDebt.id,
       relation: 'creates', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
@@ -163,11 +163,11 @@ export function registerTechDebt(ctx: OperationContext, input: RegisterTechDebtI
       id: ulid(), source_id: techDebt.id, target_id: blockId,
       relation: 'blocks', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'tech_debt.registered',
     operation: 'register_tech_debt',
     node_id: techDebt.id,

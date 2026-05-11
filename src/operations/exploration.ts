@@ -18,7 +18,7 @@ export interface BeginExplorationInput {
   tags?: string[];
 }
 
-export function beginExploration(ctx: OperationContext, input: BeginExplorationInput) {
+export async function beginExploration(ctx: OperationContext, input: BeginExplorationInput) {
   const now = new Date().toISOString();
   const exploration: ExplorationNode = {
     id: ulid(),
@@ -37,7 +37,7 @@ export function beginExploration(ctx: OperationContext, input: BeginExplorationI
     outcome: null,
   };
 
-  ctx.nodes.insert(exploration);
+  await ctx.nodes.insert(exploration);
 
   const edges_created: Edge[] = [];
 
@@ -46,7 +46,7 @@ export function beginExploration(ctx: OperationContext, input: BeginExplorationI
       id: ulid(), source_id: goalId, target_id: exploration.id,
       relation: 'spawns', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
@@ -55,11 +55,11 @@ export function beginExploration(ctx: OperationContext, input: BeginExplorationI
       id: ulid(), source_id: input.triggered_by, target_id: exploration.id,
       relation: 'spawns', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'exploration.started',
     operation: 'begin_exploration',
     node_id: exploration.id,
@@ -81,8 +81,8 @@ export interface RecordFindingInput {
   related_nodes?: string[];
 }
 
-export function recordExplorationFinding(ctx: OperationContext, input: RecordFindingInput) {
-  const node = ctx.nodes.getById(input.exploration_id);
+export async function recordExplorationFinding(ctx: OperationContext, input: RecordFindingInput) {
+  const node = await ctx.nodes.getById(input.exploration_id);
   if (!node || node.type !== 'exploration') {
     throw new Error(`Exploration not found: ${input.exploration_id}`);
   }
@@ -96,7 +96,7 @@ export function recordExplorationFinding(ctx: OperationContext, input: RecordFin
     findings: [...exploration.findings, input.finding],
     updated_at: new Date().toISOString(),
   };
-  ctx.nodes.update(updated);
+  await ctx.nodes.update(updated);
 
   const edges_created: Edge[] = [];
   const now = new Date().toISOString();
@@ -107,11 +107,11 @@ export function recordExplorationFinding(ctx: OperationContext, input: RecordFin
       annotation: `Finding: ${input.finding.slice(0, 50)}`,
       created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'exploration.finding_recorded',
     operation: 'record_exploration_finding',
     node_id: input.exploration_id,
@@ -149,8 +149,8 @@ export interface ConcludeExplorationInput {
   }[];
 }
 
-export function concludeExploration(ctx: OperationContext, input: ConcludeExplorationInput) {
-  const node = ctx.nodes.getById(input.exploration_id);
+export async function concludeExploration(ctx: OperationContext, input: ConcludeExplorationInput) {
+  const node = await ctx.nodes.getById(input.exploration_id);
   if (!node || node.type !== 'exploration') {
     throw new Error(`Exploration not found: ${input.exploration_id}`);
   }
@@ -167,7 +167,7 @@ export function concludeExploration(ctx: OperationContext, input: ConcludeExplor
     outcome: input.outcome,
     updated_at: now,
   };
-  ctx.nodes.update(updated);
+  await ctx.nodes.update(updated);
 
   const decisions_created: any[] = [];
   const knowledge_created: any[] = [];
@@ -186,14 +186,14 @@ export function concludeExploration(ctx: OperationContext, input: ConcludeExplor
       consequences: d.consequences ?? [],
       superseded_by: null,
     };
-    ctx.nodes.insert(decision);
+    await ctx.nodes.insert(decision);
     decisions_created.push(decision);
 
     const edge: Edge = {
       id: ulid(), source_id: input.exploration_id, target_id: decision.id,
       relation: 'produces', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
@@ -208,14 +208,14 @@ export function concludeExploration(ctx: OperationContext, input: ConcludeExplor
       source: `Exploration: ${exploration.title}`,
       valid_until: null,
     };
-    ctx.nodes.insert(knowledge);
+    await ctx.nodes.insert(knowledge);
     knowledge_created.push(knowledge);
 
     const edge: Edge = {
       id: ulid(), source_id: input.exploration_id, target_id: knowledge.id,
       relation: 'produces', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
@@ -229,18 +229,18 @@ export function concludeExploration(ctx: OperationContext, input: ConcludeExplor
       priority: 'medium' as const,
       acceptance_criteria: [],
     };
-    ctx.nodes.insert(task);
+    await ctx.nodes.insert(task);
     tasks_created.push(task);
 
     const edge: Edge = {
       id: ulid(), source_id: task.id, target_id: input.exploration_id,
       relation: 'derived_from', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'exploration.concluded',
     operation: 'conclude_exploration',
     node_id: input.exploration_id,
@@ -267,8 +267,8 @@ export interface AbandonExplorationInput {
   learnings?: string;
 }
 
-export function abandonExploration(ctx: OperationContext, input: AbandonExplorationInput) {
-  const node = ctx.nodes.getById(input.exploration_id);
+export async function abandonExploration(ctx: OperationContext, input: AbandonExplorationInput) {
+  const node = await ctx.nodes.getById(input.exploration_id);
   if (!node || node.type !== 'exploration') {
     throw new Error(`Exploration not found: ${input.exploration_id}`);
   }
@@ -283,7 +283,7 @@ export function abandonExploration(ctx: OperationContext, input: AbandonExplorat
     conclusion: input.reason,
     updated_at: now,
   };
-  ctx.nodes.update(updated);
+  await ctx.nodes.update(updated);
 
   let knowledge_created = null;
   const edges_created: Edge[] = [];
@@ -298,17 +298,17 @@ export function abandonExploration(ctx: OperationContext, input: AbandonExplorat
       source: `Abandoned exploration: ${(node as ExplorationNode).title}`,
       valid_until: null,
     };
-    ctx.nodes.insert(knowledge_created);
+    await ctx.nodes.insert(knowledge_created);
 
     const edge: Edge = {
       id: ulid(), source_id: input.exploration_id, target_id: knowledge_created.id,
       relation: 'produces', weight: null, annotation: '从失败中学习', created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'exploration.abandoned',
     operation: 'abandon_exploration',
     node_id: input.exploration_id,

@@ -1,133 +1,76 @@
-import Database from 'better-sqlite3';
-import { mkdirSync } from 'fs';
-import { dirname } from 'path';
+import type { Sql } from '../storage/db.js';
 import type { ProjectMeta, CreateProjectInput, UpdateProjectInput } from './types.js';
 
-const REGISTRY_SCHEMA = `
-CREATE TABLE IF NOT EXISTS projects (
-  slug TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  archived INTEGER NOT NULL DEFAULT 0,
-  metadata TEXT NOT NULL DEFAULT '{}'
-);
-
-CREATE TABLE IF NOT EXISTS config (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
-
-INSERT OR IGNORE INTO config (key, value) VALUES ('default_project', 'default');
-`;
+// ============================================================
+// Registry — PG-backed project metadata
+// ============================================================
 
 export class Registry {
-  private db: Database.Database;
-  private stmts: {
-    insert: Database.Statement;
-    list: Database.Statement;
-    get: Database.Statement;
-    update: Database.Statement;
-    archive: Database.Statement;
-    getConfig: Database.Statement;
-    setConfig: Database.Statement;
-  };
+  constructor(private sql: Sql) {}
 
-  constructor(registryPath: string) {
-    mkdirSync(dirname(registryPath), { recursive: true });
-    this.db = new Database(registryPath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('synchronous = NORMAL');
-    this.db.exec(REGISTRY_SCHEMA);
-
-    this.stmts = {
-      insert: this.db.prepare(
-        'INSERT INTO projects (slug, name, description, created_at, updated_at, metadata) VALUES (?, ?, ?, ?, ?, ?)'
-      ),
-      list: this.db.prepare(
-        'SELECT * FROM projects WHERE archived = 0 ORDER BY updated_at DESC'
-      ),
-      get: this.db.prepare('SELECT * FROM projects WHERE slug = ?'),
-      update: this.db.prepare(
-        'UPDATE projects SET name = ?, description = ?, updated_at = ?, metadata = ? WHERE slug = ?'
-      ),
-      archive: this.db.prepare(
-        'UPDATE projects SET archived = 1, updated_at = ? WHERE slug = ?'
-      ),
-      getConfig: this.db.prepare('SELECT value FROM config WHERE key = ?'),
-      setConfig: this.db.prepare(
-        'INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)'
-      ),
-    };
-  }
-
-  insertProject(input: CreateProjectInput): ProjectMeta {
+  async insertProject(input: CreateProjectInput): Promise<ProjectMeta> {
     const now = new Date().toISOString();
-    this.stmts.insert.run(
-      input.slug,
-      input.name,
-      input.description ?? '',
-      now,
-      now,
-      JSON.stringify(input.metadata ?? {}),
-    );
-    return {
-      slug: input.slug,
-      name: input.name,
-      description: input.description ?? '',
-      createdAt: now,
-      updatedAt: now,
-      archived: false,
-      metadata: input.metadata ?? {},
-    };
+    const rows = await this.sql`
+      INSERT INTO projects (slug, name, description, created_at, updated_at, metadata)
+      VALUES (${input.slug}, ${input.name}, ${input.description ?? ''}, ${now}, ${now}, ${JSON.stringify(input.metadata ?? {})})
+      RETURNING *
+    `;
+    return rowToMeta(rows[0]);
   }
 
-  listProjects(): ProjectMeta[] {
-    const rows = this.stmts.list.all() as any[];
+  async listProjects(): Promise<ProjectMeta[]> {
+    const rows = await this.sql`
+      SELECT * FROM projects WHERE archived = FALSE ORDER BY updated_at DESC
+    `;
     return rows.map(rowToMeta);
   }
 
-  getProject(slug: string): ProjectMeta | null {
-    const row = this.stmts.get.get(slug) as any;
-    return row ? rowToMeta(row) : null;
+  async getProject(slug: string): Promise<ProjectMeta | null> {
+    const rows = await this.sql`
+      SELECT * FROM projects WHERE slug = ${slug}
+    `;
+    return rows.length > 0 ? rowToMeta(rows[0]) : null;
   }
 
-  updateProject(slug: string, patch: UpdateProjectInput): ProjectMeta | null {
-    const existing = this.getProject(slug);
-    if (!existing) return null;
+  async updateProject(slug: string, patch: UpdateProjectInput): Promise<ProjectMeta | null> {
     const now = new Date().toISOString();
-    const updated = {
-      name: patch.name ?? existing.name,
-      description: patch.description ?? existing.description,
-      metadata: patch.metadata ?? existing.metadata,
-    };
-    this.stmts.update.run(
-      updated.name,
-      updated.description,
-      now,
-      JSON.stringify(updated.metadata),
-      slug,
-    );
-    return { ...existing, ...updated, updatedAt: now };
+    const current = await this.getProject(slug);
+    if (!current) return null;
+
+    const name = patch.name ?? current.name;
+    const description = patch.description ?? current.description;
+    const metadata = patch.metadata ?? current.metadata;
+
+    const rows = await this.sql`
+      UPDATE projects SET name = ${name}, description = ${description},
+        updated_at = ${now}, metadata = ${JSON.stringify(metadata)}
+      WHERE slug = ${slug}
+      RETURNING *
+    `;
+    return rows.length > 0 ? rowToMeta(rows[0]) : null;
   }
 
-  archiveProject(slug: string): void {
+  async archiveProject(slug: string): Promise<void> {
     const now = new Date().toISOString();
-    this.stmts.archive.run(now, slug);
+    await this.sql`
+      UPDATE projects SET archived = TRUE, updated_at = ${now} WHERE slug = ${slug}
+    `;
   }
 
-  getConfig(key: string): string | null {
-    const row = this.stmts.getConfig.get(key) as any;
-    return row?.value ?? null;
+  async getConfig(key: string): Promise<string | null> {
+    const rows = await this.sql`SELECT value FROM config WHERE key = ${key}`;
+    return rows.length > 0 ? rows[0].value : null;
   }
 
-  setConfig(key: string, value: string): void {
-    this.stmts.setConfig.run(key, value);
+  async setConfig(key: string, value: string): Promise<void> {
+    await this.sql`
+      INSERT INTO config (key, value) VALUES (${key}, ${value})
+      ON CONFLICT (key) DO UPDATE SET value = ${value}
+    `;
   }
 
-  close(): void {
-    this.db.close();
+  async close(): Promise<void> {
+    // No-op: pool lifecycle managed centrally
   }
 }
 
@@ -138,7 +81,7 @@ function rowToMeta(row: any): ProjectMeta {
     description: row.description,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    archived: row.archived === 1,
-    metadata: JSON.parse(row.metadata || '{}'),
+    archived: row.archived,
+    metadata: row.metadata ?? {},
   };
 }

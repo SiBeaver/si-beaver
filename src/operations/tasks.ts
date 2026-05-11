@@ -20,7 +20,7 @@ export interface CreateTaskInput {
   tags?: string[];
 }
 
-export function createTask(ctx: OperationContext, input: CreateTaskInput) {
+export async function createTask(ctx: OperationContext, input: CreateTaskInput) {
   const now = new Date().toISOString();
   const task: TaskNode = {
     id: ulid(),
@@ -37,7 +37,7 @@ export function createTask(ctx: OperationContext, input: CreateTaskInput) {
     acceptance_criteria: input.acceptance_criteria ?? [],
   };
 
-  ctx.nodes.insert(task);
+  await ctx.nodes.insert(task);
   const edges_created: Edge[] = [];
 
   if (input.parent_goal) {
@@ -45,7 +45,7 @@ export function createTask(ctx: OperationContext, input: CreateTaskInput) {
       id: ulid(), source_id: input.parent_goal, target_id: task.id,
       relation: 'decomposes_into', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
@@ -54,7 +54,7 @@ export function createTask(ctx: OperationContext, input: CreateTaskInput) {
       id: ulid(), source_id: task.id, target_id: input.addresses_tech_debt,
       relation: 'addresses', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
@@ -63,11 +63,11 @@ export function createTask(ctx: OperationContext, input: CreateTaskInput) {
       id: ulid(), source_id: task.id, target_id: input.mitigates_risk,
       relation: 'mitigates', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'task.created',
     operation: 'create_task',
     node_id: task.id,
@@ -94,8 +94,8 @@ export interface UpdateTaskStatusInput {
   }[];
 }
 
-export function updateTaskStatus(ctx: OperationContext, input: UpdateTaskStatusInput) {
-  const node = ctx.nodes.getById(input.task_id);
+export async function updateTaskStatus(ctx: OperationContext, input: UpdateTaskStatusInput) {
+  const node = await ctx.nodes.getById(input.task_id);
   if (!node || node.type !== 'task') {
     throw new Error(`Task not found: ${input.task_id}`);
   }
@@ -116,7 +116,7 @@ export function updateTaskStatus(ctx: OperationContext, input: UpdateTaskStatusI
     status: input.new_status,
     updated_at: now,
   };
-  ctx.nodes.update(updated);
+  await ctx.nodes.update(updated);
 
   const artifacts_created: any[] = [];
   const edges_created: Edge[] = [];
@@ -130,18 +130,18 @@ export function updateTaskStatus(ctx: OperationContext, input: UpdateTaskStatusI
       uri: a.uri ?? null,
       content_summary: a.content_summary ?? null,
     };
-    ctx.nodes.insert(artifact);
+    await ctx.nodes.insert(artifact);
     artifacts_created.push(artifact);
 
     const edge: Edge = {
       id: ulid(), source_id: input.task_id, target_id: artifact.id,
       relation: 'evidenced_by', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'task.status_changed',
     operation: 'update_task_status',
     node_id: input.task_id,

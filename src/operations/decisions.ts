@@ -37,7 +37,7 @@ export interface RecordDecisionInput {
   tags?: string[];
 }
 
-export function recordDecision(ctx: OperationContext, input: RecordDecisionInput) {
+export async function recordDecision(ctx: OperationContext, input: RecordDecisionInput) {
   const now = new Date().toISOString();
 
   const decision: DecisionNode = {
@@ -62,7 +62,7 @@ export function recordDecision(ctx: OperationContext, input: RecordDecisionInput
     superseded_by: null,
   };
 
-  ctx.nodes.insert(decision);
+  await ctx.nodes.insert(decision);
   const edges_created: Edge[] = [];
   const risks_created: any[] = [];
   const tech_debt_created: any[] = [];
@@ -73,7 +73,7 @@ export function recordDecision(ctx: OperationContext, input: RecordDecisionInput
       id: ulid(), source_id: decision.id, target_id: goalId,
       relation: 'relates_to', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
@@ -83,13 +83,13 @@ export function recordDecision(ctx: OperationContext, input: RecordDecisionInput
       id: ulid(), source_id: expId, target_id: decision.id,
       relation: 'produces', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
   // 取代旧决策
   if (input.supersedes) {
-    const oldDecision = ctx.nodes.getById(input.supersedes);
+    const oldDecision = await ctx.nodes.getById(input.supersedes);
     if (oldDecision && oldDecision.type === 'decision') {
       const updated = {
         ...oldDecision as DecisionNode,
@@ -97,13 +97,13 @@ export function recordDecision(ctx: OperationContext, input: RecordDecisionInput
         superseded_by: decision.id,
         updated_at: now,
       };
-      ctx.nodes.update(updated);
+      await ctx.nodes.update(updated);
 
       const edge: Edge = {
         id: ulid(), source_id: decision.id, target_id: input.supersedes,
         relation: 'supersedes', weight: null, annotation: null, created_at: now,
       };
-      ctx.edges.insert(edge);
+      await ctx.edges.insert(edge);
       edges_created.push(edge);
     }
   }
@@ -117,14 +117,14 @@ export function recordDecision(ctx: OperationContext, input: RecordDecisionInput
       likelihood: r.likelihood, impact: r.impact,
       mitigation_strategy: null, trigger_conditions: [],
     };
-    ctx.nodes.insert(risk);
+    await ctx.nodes.insert(risk);
     risks_created.push(risk);
 
     const edge: Edge = {
       id: ulid(), source_id: decision.id, target_id: risk.id,
       relation: 'creates', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
@@ -137,18 +137,18 @@ export function recordDecision(ctx: OperationContext, input: RecordDecisionInput
       severity: td.severity, affected_area: td.affected_area,
       cost_of_delay: td.cost_of_delay, resolution_approach: null,
     };
-    ctx.nodes.insert(techDebt);
+    await ctx.nodes.insert(techDebt);
     tech_debt_created.push(techDebt);
 
     const edge: Edge = {
       id: ulid(), source_id: decision.id, target_id: techDebt.id,
       relation: 'creates', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'decision.recorded',
     operation: 'record_decision',
     node_id: decision.id,

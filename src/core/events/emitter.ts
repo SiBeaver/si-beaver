@@ -10,7 +10,7 @@ import type { NodeType } from '../nodes/types.js';
 export class EventEmitter {
   constructor(private store: EventStore) {}
 
-  emit(params: {
+  async emit(params: {
     event_type: EventType;
     operation: string;
     node_id?: string | null;
@@ -19,7 +19,7 @@ export class EventEmitter {
     diff?: FieldDiff[] | null;
     context?: string | null;
     actor?: 'user' | 'system';
-  }): EventRecord {
+  }): Promise<EventRecord> {
     const event: EventRecord = {
       id: ulid(),
       timestamp: new Date().toISOString(),
@@ -33,7 +33,7 @@ export class EventEmitter {
       context: params.context ?? null,
     };
 
-    this.store.insert(event);
+    await this.store.insert(event);
     return event;
   }
 

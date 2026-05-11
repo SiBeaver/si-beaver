@@ -4,7 +4,6 @@ import { cors } from 'hono/cors';
 import { getRequestListener } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { resolve } from 'path';
-import { homedir } from 'os';
 import { existsSync } from 'fs';
 import { handleMcpRequest, sessions as mcpSessions } from '../mcp/http-server.js';
 import type { OperationContext } from '../operations/context.js';
@@ -26,10 +25,7 @@ import { snakeToCamel, camelToSnake, kebabToSnake } from './transforms.js';
 // 初始化
 // ============================================================
 
-const BASE_PATH = process.env.SI_BEAVER_HOME
-  ?? resolve(homedir(), '.si-beaver');
-
-const manager = new ProjectManager(BASE_PATH);
+const manager = new ProjectManager();
 
 const app = new Hono();
 
@@ -43,23 +39,23 @@ function json(c: any, data: unknown, status?: number) {
 // 项目管理路由
 // ============================================================
 
-app.get('/api/v1/projects', (c) => {
-  return json(c, manager.listProjects());
+app.get('/api/v1/projects', async (c) => {
+  return json(c, await manager.listProjects());
 });
 
 app.post('/api/v1/projects', async (c) => {
   try {
     const input = await c.req.json();
-    const result = manager.createProject(input);
+    const result = await manager.createProject(input);
     return json(c, result, 201);
   } catch (e: any) {
     return json(c, { error: e.message }, 400);
   }
 });
 
-app.get('/api/v1/projects/:slug', (c) => {
+app.get('/api/v1/projects/:slug', async (c) => {
   const slug = c.req.param('slug');
-  const project = manager.getProject(slug);
+  const project = await manager.getProject(slug);
   if (!project) return json(c, { error: 'Project not found' }, 404);
   return json(c, project);
 });
@@ -68,16 +64,16 @@ app.patch('/api/v1/projects/:slug', async (c) => {
   const slug = c.req.param('slug');
   try {
     const patch = await c.req.json();
-    const result = manager.updateProject(slug, patch);
+    const result = await manager.updateProject(slug, patch);
     return json(c, result);
   } catch (e: any) {
     return json(c, { error: e.message }, 400);
   }
 });
 
-app.delete('/api/v1/projects/:slug', (c) => {
+app.delete('/api/v1/projects/:slug', async (c) => {
   const slug = c.req.param('slug');
-  manager.archiveProject(slug);
+  await manager.archiveProject(slug);
   return c.body(null, 204);
 });
 
@@ -90,75 +86,75 @@ function getCtx(slug: string): OperationContext {
   return manager.getContext(slug);
 }
 
-app.get('/api/v1/projects/:slug/state', (c) => {
+app.get('/api/v1/projects/:slug/state', async (c) => {
   const slug = c.req.param('slug');
   try {
-    return json(c, getProjectState(getCtx(slug)));
+    return json(c, await getProjectState(getCtx(slug)));
   } catch (e: any) {
     return json(c, { error: e.message }, 404);
   }
 });
 
-app.get('/api/v1/projects/:slug/nodes/:id', (c) => {
+app.get('/api/v1/projects/:slug/nodes/:id', async (c) => {
   const slug = c.req.param('slug');
   const nodeId = c.req.param('id');
   try {
-    return json(c, getNodeContext(getCtx(slug), nodeId));
+    return json(c, await getNodeContext(getCtx(slug), nodeId));
   } catch (e: any) {
     return json(c, { error: e.message }, 404);
   }
 });
 
-app.get('/api/v1/projects/:slug/tasks/:id/context', (c) => {
+app.get('/api/v1/projects/:slug/tasks/:id/context', async (c) => {
   const slug = c.req.param('slug');
   const taskId = c.req.param('id');
   try {
-    return json(c, getTaskContext(getCtx(slug), taskId));
+    return json(c, await getTaskContext(getCtx(slug), taskId));
   } catch (e: any) {
     return json(c, { error: e.message }, 404);
   }
 });
 
-app.get('/api/v1/projects/:slug/nodes/:id/history', (c) => {
+app.get('/api/v1/projects/:slug/nodes/:id/history', async (c) => {
   const slug = c.req.param('slug');
   const nodeId = c.req.param('id');
-  const events = getCtx(slug).eventStore.getByNode(nodeId);
+  const events = await getCtx(slug).eventStore.getByNode(nodeId);
   return json(c, events);
 });
 
-app.get('/api/v1/projects/:slug/nodes/:id/trail', (c) => {
+app.get('/api/v1/projects/:slug/nodes/:id/trail', async (c) => {
   const slug = c.req.param('slug');
   const nodeId = c.req.param('id');
   try {
-    return json(c, decisionTrail(getCtx(slug), nodeId));
+    return json(c, await decisionTrail(getCtx(slug), nodeId));
   } catch (e: any) {
     return json(c, { error: e.message }, 404);
   }
 });
 
-app.get('/api/v1/projects/:slug/search', (c) => {
+app.get('/api/v1/projects/:slug/search', async (c) => {
   const slug = c.req.param('slug');
   const q = c.req.query('q');
   if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
-  return json(c, getCtx(slug).nodes.search(q));
+  return json(c, await getCtx(slug).nodes.search(q));
 });
 
-app.get('/api/v1/projects/:slug/events', (c) => {
+app.get('/api/v1/projects/:slug/events', async (c) => {
   const slug = c.req.param('slug');
   const since = c.req.query('since');
   const limit = c.req.query('limit');
   const ctx = getCtx(slug);
-  if (since) return json(c, ctx.eventStore.getSince(since));
-  return json(c, ctx.eventStore.getRecent(Number(limit) || 20));
+  if (since) return json(c, await ctx.eventStore.getSince(since));
+  return json(c, await ctx.eventStore.getRecent(Number(limit) || 20));
 });
 
-app.get('/api/v1/projects/:slug/roadmap', (c) => {
+app.get('/api/v1/projects/:slug/roadmap', async (c) => {
   const slug = c.req.param('slug');
   const rootGoal = c.req.query('root-goal');
   const includeCompleted = c.req.query('include-completed') === 'true';
   const maxDepth = c.req.query('max-depth');
   try {
-    const result = getRoadmap(getCtx(slug), {
+    const result = await getRoadmap(getCtx(slug), {
       root_goal: rootGoal || undefined,
       include_completed: includeCompleted,
       max_depth: maxDepth ? Number(maxDepth) : undefined,
@@ -169,46 +165,46 @@ app.get('/api/v1/projects/:slug/roadmap', (c) => {
   }
 });
 
-app.get('/api/v1/projects/:slug/goals/progress', (c) => {
+app.get('/api/v1/projects/:slug/goals/progress', async (c) => {
   const slug = c.req.param('slug');
-  return json(c, goalProgress(getCtx(slug)));
+  return json(c, await goalProgress(getCtx(slug)));
 });
 
-app.get('/api/v1/projects/:slug/knowledge', (c) => {
+app.get('/api/v1/projects/:slug/knowledge', async (c) => {
   const slug = c.req.param('slug');
   const domain = c.req.query('domain');
-  return json(c, knowledgeMap(getCtx(slug), domain || undefined));
+  return json(c, await knowledgeMap(getCtx(slug), domain || undefined));
 });
 
-app.get('/api/v1/projects/:slug/stale', (c) => {
+app.get('/api/v1/projects/:slug/stale', async (c) => {
   const slug = c.req.param('slug');
   const days = c.req.query('days');
-  return json(c, staleItems(getCtx(slug), days ? Number(days) : undefined));
+  return json(c, await staleItems(getCtx(slug), days ? Number(days) : undefined));
 });
 
-app.get('/api/v1/projects/:slug/blockers', (c) => {
+app.get('/api/v1/projects/:slug/blockers', async (c) => {
   const slug = c.req.param('slug');
-  return json(c, currentBlockers(getCtx(slug)));
+  return json(c, await currentBlockers(getCtx(slug)));
 });
 
-app.get('/api/v1/projects/:slug/activity', (c) => {
+app.get('/api/v1/projects/:slug/activity', async (c) => {
   const slug = c.req.param('slug');
   const limit = c.req.query('limit');
-  return json(c, recentActivity(getCtx(slug), limit ? Number(limit) : undefined));
+  return json(c, await recentActivity(getCtx(slug), limit ? Number(limit) : undefined));
 });
 
-app.get('/api/v1/projects/:slug/fts', (c) => {
+app.get('/api/v1/projects/:slug/fts', async (c) => {
   const slug = c.req.param('slug');
   const q = c.req.query('q');
   if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
-  return json(c, fullTextSearch(getCtx(slug), q));
+  return json(c, await fullTextSearch(getCtx(slug), q));
 });
 
 // ============================================================
 // 项目级写操作
 // ============================================================
 
-const operationHandlers: Record<string, (ctx: OperationContext, input: any) => any> = {
+const operationHandlers: Record<string, (ctx: OperationContext, input: any) => Promise<any>> = {
   define_goal: defineGoal,
   decompose_goal: decomposeGoal,
   update_goal_status: updateGoalStatus,
@@ -239,7 +235,7 @@ app.post('/api/v1/projects/:slug/operations/:name', async (c) => {
     const ctx = getCtx(slug);
     const input = await c.req.json();
     const snakeInput = camelToSnake(input);
-    const result = handler(ctx, snakeInput);
+    const result = await handler(ctx, snakeInput);
     return json(c, result);
   } catch (e: any) {
     return json(c, { error: e.message }, 400);
@@ -250,55 +246,55 @@ app.post('/api/v1/projects/:slug/operations/:name', async (c) => {
 // 向后兼容旧路由 — 映射到默认项目
 // ============================================================
 
-const defaultCtx = () => getCtx(manager.getDefaultProject());
+const defaultCtx = async () => getCtx(await manager.getDefaultProject());
 
-app.get('/api/v1/project/state', (c) => {
-  return json(c, getProjectState(defaultCtx()));
+app.get('/api/v1/project/state', async (c) => {
+  return json(c, await getProjectState(await defaultCtx()));
 });
 
-app.get('/api/v1/nodes/:id', (c) => {
+app.get('/api/v1/nodes/:id', async (c) => {
   const nodeId = c.req.param('id');
   try {
-    return json(c, getNodeContext(defaultCtx(), nodeId));
+    return json(c, await getNodeContext(await defaultCtx(), nodeId));
   } catch (e: any) {
     return json(c, { error: e.message }, 404);
   }
 });
 
-app.get('/api/v1/nodes/:id/history', (c) => {
+app.get('/api/v1/nodes/:id/history', async (c) => {
   const nodeId = c.req.param('id');
-  return json(c, defaultCtx().eventStore.getByNode(nodeId));
+  return json(c, await (await defaultCtx()).eventStore.getByNode(nodeId));
 });
 
-app.get('/api/v1/nodes/:id/trail', (c) => {
+app.get('/api/v1/nodes/:id/trail', async (c) => {
   const nodeId = c.req.param('id');
   try {
-    return json(c, decisionTrail(defaultCtx(), nodeId));
+    return json(c, await decisionTrail(await defaultCtx(), nodeId));
   } catch (e: any) {
     return json(c, { error: e.message }, 404);
   }
 });
 
-app.get('/api/v1/search', (c) => {
+app.get('/api/v1/search', async (c) => {
   const q = c.req.query('q');
   if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
-  return json(c, defaultCtx().nodes.search(q));
+  return json(c, await (await defaultCtx()).nodes.search(q));
 });
 
-app.get('/api/v1/events', (c) => {
+app.get('/api/v1/events', async (c) => {
   const since = c.req.query('since');
   const limit = c.req.query('limit');
-  const ctx = defaultCtx();
-  if (since) return json(c, ctx.eventStore.getSince(since));
-  return json(c, ctx.eventStore.getRecent(Number(limit) || 20));
+  const ctx = await defaultCtx();
+  if (since) return json(c, await ctx.eventStore.getSince(since));
+  return json(c, await ctx.eventStore.getRecent(Number(limit) || 20));
 });
 
-app.get('/api/v1/roadmap', (c) => {
+app.get('/api/v1/roadmap', async (c) => {
   const rootGoal = c.req.query('root-goal');
   const includeCompleted = c.req.query('include-completed') === 'true';
   const maxDepth = c.req.query('max-depth');
   try {
-    const result = getRoadmap(defaultCtx(), {
+    const result = await getRoadmap(await defaultCtx(), {
       root_goal: rootGoal || undefined,
       include_completed: includeCompleted,
       max_depth: maxDepth ? Number(maxDepth) : undefined,
@@ -309,33 +305,33 @@ app.get('/api/v1/roadmap', (c) => {
   }
 });
 
-app.get('/api/v1/goals/progress', (c) => {
-  return json(c, goalProgress(defaultCtx()));
+app.get('/api/v1/goals/progress', async (c) => {
+  return json(c, await goalProgress(await defaultCtx()));
 });
 
-app.get('/api/v1/knowledge', (c) => {
+app.get('/api/v1/knowledge', async (c) => {
   const domain = c.req.query('domain');
-  return json(c, knowledgeMap(defaultCtx(), domain || undefined));
+  return json(c, await knowledgeMap(await defaultCtx(), domain || undefined));
 });
 
-app.get('/api/v1/stale', (c) => {
+app.get('/api/v1/stale', async (c) => {
   const days = c.req.query('days');
-  return json(c, staleItems(defaultCtx(), days ? Number(days) : undefined));
+  return json(c, await staleItems(await defaultCtx(), days ? Number(days) : undefined));
 });
 
-app.get('/api/v1/blockers', (c) => {
-  return json(c, currentBlockers(defaultCtx()));
+app.get('/api/v1/blockers', async (c) => {
+  return json(c, await currentBlockers(await defaultCtx()));
 });
 
-app.get('/api/v1/activity', (c) => {
+app.get('/api/v1/activity', async (c) => {
   const limit = c.req.query('limit');
-  return json(c, recentActivity(defaultCtx(), limit ? Number(limit) : undefined));
+  return json(c, await recentActivity(await defaultCtx(), limit ? Number(limit) : undefined));
 });
 
-app.get('/api/v1/fts', (c) => {
+app.get('/api/v1/fts', async (c) => {
   const q = c.req.query('q');
   if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
-  return json(c, fullTextSearch(defaultCtx(), q));
+  return json(c, await fullTextSearch(await defaultCtx(), q));
 });
 
 app.post('/api/v1/operations/:name', async (c) => {
@@ -348,7 +344,7 @@ app.post('/api/v1/operations/:name', async (c) => {
   try {
     const input = await c.req.json();
     const snakeInput = camelToSnake(input);
-    const result = handler(defaultCtx(), snakeInput);
+    const result = await handler(await defaultCtx(), snakeInput);
     return json(c, result);
   } catch (e: any) {
     return json(c, { error: e.message }, 400);
@@ -374,38 +370,47 @@ if (existsSync(WEB_DIST)) {
 
 const PORT = Number(process.env.SI_BEAVER_PORT) || 7420;
 
-const honoListener = getRequestListener(app.fetch);
+async function start() {
+  await manager.init();
 
-const httpServer = createServer(async (req, res) => {
-  const pathname = req.url?.split('?')[0] ?? '/';
+  const honoListener = getRequestListener(app.fetch);
 
-  // CORS preflight for MCP routes
-  if (pathname.startsWith('/mcp/') && req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', '*');
-    res.writeHead(204);
-    res.end();
-    return;
-  }
+  const httpServer = createServer(async (req, res) => {
+    const pathname = req.url?.split('?')[0] ?? '/';
 
-  // MCP routes: /mcp/{slug}
-  if (pathname.startsWith('/mcp/')) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', '*');
-    const handled = await handleMcpRequest(req, res, manager);
-    if (handled) return;
-  }
+    // CORS preflight for MCP routes
+    if (pathname.startsWith('/mcp/') && req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', '*');
+      res.writeHead(204);
+      res.end();
+      return;
+    }
 
-  // Everything else → Hono (REST API + static files)
-  honoListener(req, res);
-});
+    // MCP routes: /mcp/{slug}
+    if (pathname.startsWith('/mcp/')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', '*');
+      const handled = await handleMcpRequest(req, res, manager);
+      if (handled) return;
+    }
 
-httpServer.listen(PORT, () => {
-  console.log(`si-beaver running at http://localhost:${PORT} (REST + MCP unified)`);
-  console.log(`  REST API: http://localhost:${PORT}/api/v1/...`);
-  console.log(`  MCP:      http://localhost:${PORT}/mcp/{slug}`);
+    // Everything else → Hono (REST API + static files)
+    honoListener(req, res);
+  });
+
+  httpServer.listen(PORT, () => {
+    console.log(`si-beaver running at http://localhost:${PORT} (REST + MCP unified)`);
+    console.log(`  REST API: http://localhost:${PORT}/api/v1/...`);
+    console.log(`  MCP:      http://localhost:${PORT}/mcp/{slug}`);
+  });
+}
+
+start().catch((err) => {
+  console.error('Failed to start si-beaver:', err);
+  process.exit(1);
 });
 
 export { app };

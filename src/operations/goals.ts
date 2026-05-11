@@ -25,7 +25,7 @@ export interface DefineGoalResult {
   event: EventRecord;
 }
 
-export function defineGoal(ctx: OperationContext, input: DefineGoalInput): DefineGoalResult {
+export async function defineGoal(ctx: OperationContext, input: DefineGoalInput): Promise<DefineGoalResult> {
   const now = new Date().toISOString();
   const goal: GoalNode = {
     id: ulid(),
@@ -42,7 +42,7 @@ export function defineGoal(ctx: OperationContext, input: DefineGoalInput): Defin
     priority: input.priority,
   };
 
-  ctx.nodes.insert(goal);
+  await ctx.nodes.insert(goal);
 
   const edges_created: Edge[] = [];
 
@@ -56,11 +56,11 @@ export function defineGoal(ctx: OperationContext, input: DefineGoalInput): Defin
       annotation: null,
       created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'goal.defined',
     operation: 'define_goal',
     node_id: goal.id,
@@ -99,9 +99,9 @@ export interface DecomposeGoalInput {
   }[];
 }
 
-export function decomposeGoal(ctx: OperationContext, input: DecomposeGoalInput) {
+export async function decomposeGoal(ctx: OperationContext, input: DecomposeGoalInput) {
   const now = new Date().toISOString();
-  const parent = ctx.nodes.getById(input.goal_id);
+  const parent = await ctx.nodes.getById(input.goal_id);
   if (!parent || parent.type !== 'goal') {
     throw new Error(`Goal not found: ${input.goal_id}`);
   }
@@ -120,14 +120,14 @@ export function decomposeGoal(ctx: OperationContext, input: DecomposeGoalInput) 
       horizon: sg.horizon, success_criteria: sg.success_criteria ?? [],
       priority: sg.priority ?? 'medium',
     };
-    ctx.nodes.insert(node);
+    await ctx.nodes.insert(node);
     sub_goals_created.push(node);
 
     const edge: Edge = {
       id: ulid(), source_id: input.goal_id, target_id: node.id,
       relation: 'decomposes_into', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
@@ -141,14 +141,14 @@ export function decomposeGoal(ctx: OperationContext, input: DecomposeGoalInput) 
       priority: t.priority ?? 'medium' as const,
       acceptance_criteria: t.acceptance_criteria ?? [],
     };
-    ctx.nodes.insert(node);
+    await ctx.nodes.insert(node);
     tasks_created.push(node);
 
     const edge: Edge = {
       id: ulid(), source_id: input.goal_id, target_id: node.id,
       relation: 'decomposes_into', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
@@ -161,18 +161,18 @@ export function decomposeGoal(ctx: OperationContext, input: DecomposeGoalInput) 
       hypothesis: e.hypothesis ?? '', approach: '',
       findings: [], conclusion: null, outcome: null,
     };
-    ctx.nodes.insert(node);
+    await ctx.nodes.insert(node);
     explorations_created.push(node);
 
     const edge: Edge = {
       id: ulid(), source_id: input.goal_id, target_id: node.id,
       relation: 'spawns', weight: null, annotation: null, created_at: now,
     };
-    ctx.edges.insert(edge);
+    await ctx.edges.insert(edge);
     edges_created.push(edge);
   }
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'goal.decomposed',
     operation: 'decompose_goal',
     node_id: input.goal_id,
@@ -197,8 +197,8 @@ export interface UpdateGoalStatusInput {
   reason: string;
 }
 
-export function updateGoalStatus(ctx: OperationContext, input: UpdateGoalStatusInput) {
-  const goal = ctx.nodes.getById(input.goal_id);
+export async function updateGoalStatus(ctx: OperationContext, input: UpdateGoalStatusInput) {
+  const goal = await ctx.nodes.getById(input.goal_id);
   if (!goal || goal.type !== 'goal') {
     throw new Error(`Goal not found: ${input.goal_id}`);
   }
@@ -213,9 +213,9 @@ export function updateGoalStatus(ctx: OperationContext, input: UpdateGoalStatusI
     status: input.new_status,
     updated_at: new Date().toISOString(),
   };
-  ctx.nodes.update(updated);
+  await ctx.nodes.update(updated);
 
-  const event = ctx.events.emit({
+  const event = await ctx.events.emit({
     event_type: 'goal.status_changed',
     operation: 'update_goal_status',
     node_id: input.goal_id,

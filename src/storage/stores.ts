@@ -1,239 +1,187 @@
-import type BetterSqlite3 from 'better-sqlite3';
+import type { Sql } from './db.js';
 import type { CognitiveNode, NodeType } from '../core/nodes/types.js';
 import type { Edge } from '../core/edges/types.js';
 import type { EventRecord } from '../core/events/types.js';
 
-type Statement = BetterSqlite3.Statement;
-
 // ============================================================
-// 节点存储
+// Row ↔ Node 转换
 // ============================================================
 
-// 从 CognitiveNode 拆分为数据库行格式
-function nodeToRow(node: CognitiveNode) {
-  const { id, type, title, description, status, tags, created_at, updated_at, metadata, ...data } = node;
-  return {
-    id,
-    type,
-    title,
-    description,
-    status,
-    tags: JSON.stringify(tags),
-    created_at,
-    updated_at,
-    metadata: JSON.stringify(metadata),
-    data: JSON.stringify(data),
-  };
-}
-
-// 从数据库行格式还原为 CognitiveNode
 function rowToNode(row: any): CognitiveNode {
+  const { project_id, search_vector, data, tags, metadata, ...rest } = row;
+  const parsedData = typeof data === 'string' ? JSON.parse(data) : (data ?? {});
+  const parsedTags = typeof tags === 'string' ? JSON.parse(tags) : (tags ?? []);
+  const parsedMeta = typeof metadata === 'string' ? JSON.parse(metadata) : (metadata ?? {});
   return {
-    ...JSON.parse(row.data),
-    id: row.id,
-    type: row.type,
-    title: row.title,
-    description: row.description,
-    status: row.status,
-    tags: JSON.parse(row.tags),
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    metadata: JSON.parse(row.metadata),
+    ...parsedData,
+    ...rest,
+    tags: parsedTags,
+    metadata: parsedMeta,
+    createdAt: rest.created_at,
+    updatedAt: rest.updated_at,
   } as CognitiveNode;
 }
 
+function rowToEdge(row: any): Edge {
+  const { project_id, ...rest } = row;
+  return rest as Edge;
+}
+
+function rowToEvent(row: any): EventRecord {
+  const { project_id, payload, diff, ...rest } = row;
+  return {
+    ...rest,
+    payload: typeof payload === 'string' ? JSON.parse(payload) : (payload ?? {}),
+    diff: diff == null ? null : (typeof diff === 'string' ? JSON.parse(diff) : diff),
+  } as EventRecord;
+}
+
+// ============================================================
+// NodeStore
+// ============================================================
+
 export class NodeStore {
-  private insertStmt: Statement;
-  private updateStmt: Statement;
-  private getByIdStmt: Statement;
-  private getByTypeStmt: Statement;
-  private getByTypeStatusStmt: Statement;
-  private deleteStmt: Statement;
-  private searchStmt: Statement;
+  constructor(private sql: Sql, private projectId: string) {}
 
-  constructor(private db: BetterSqlite3.Database) {
-    this.insertStmt = db.prepare(`
-      INSERT INTO nodes (id, type, title, description, status, tags, created_at, updated_at, metadata, data)
-      VALUES (@id, @type, @title, @description, @status, @tags, @created_at, @updated_at, @metadata, @data)
-    `);
-
-    this.updateStmt = db.prepare(`
-      UPDATE nodes SET title=@title, description=@description, status=@status,
-        tags=@tags, updated_at=@updated_at, metadata=@metadata, data=@data
-      WHERE id=@id
-    `);
-
-    this.getByIdStmt = db.prepare('SELECT * FROM nodes WHERE id = ?');
-    this.getByTypeStmt = db.prepare('SELECT * FROM nodes WHERE type = ?');
-    this.getByTypeStatusStmt = db.prepare('SELECT * FROM nodes WHERE type = ? AND status = ?');
-    this.deleteStmt = db.prepare('DELETE FROM nodes WHERE id = ?');
-    this.searchStmt = db.prepare(`
-      SELECT nodes.* FROM nodes_fts
-      JOIN nodes ON nodes.rowid = nodes_fts.rowid
-      WHERE nodes_fts MATCH ?
-      ORDER BY rank
-    `);
+  async insert(node: CognitiveNode): Promise<void> {
+    const { id, type, title, description, status, tags, created_at, updated_at, metadata, ...data } = node as any;
+    await this.sql`
+      INSERT INTO nodes (id, project_id, type, title, description, status, tags, created_at, updated_at, metadata, data)
+      VALUES (${id}, ${this.projectId}, ${type}, ${title ?? ''}, ${description ?? ''}, ${status},
+              ${JSON.stringify(tags ?? [])}, ${created_at}, ${updated_at},
+              ${JSON.stringify(metadata ?? {})}, ${JSON.stringify(data)})
+    `;
   }
 
-  insert(node: CognitiveNode): void {
-    this.insertStmt.run(nodeToRow(node));
+  async update(node: CognitiveNode): Promise<void> {
+    const { id, type, title, description, status, tags, created_at, updated_at, metadata, ...data } = node as any;
+    await this.sql`
+      UPDATE nodes SET
+        title = ${title ?? ''}, description = ${description ?? ''}, status = ${status},
+        tags = ${JSON.stringify(tags ?? [])}, updated_at = ${updated_at},
+        metadata = ${JSON.stringify(metadata ?? {})}, data = ${JSON.stringify(data)}
+      WHERE id = ${id} AND project_id = ${this.projectId}
+    `;
   }
 
-  update(node: CognitiveNode): void {
-    const { id, title, description, status, tags, updated_at, metadata, type, created_at, ...data } = node;
-    this.updateStmt.run({
-      id,
-      title,
-      description,
-      status,
-      tags: JSON.stringify(tags),
-      updated_at,
-      metadata: JSON.stringify(metadata),
-      data: JSON.stringify(data),
-    });
+  async getById(id: string): Promise<CognitiveNode | null> {
+    const rows = await this.sql`
+      SELECT * FROM nodes WHERE id = ${id} AND project_id = ${this.projectId}
+    `;
+    return rows.length > 0 ? rowToNode(rows[0]) : null;
   }
 
-  getById(id: string): CognitiveNode | null {
-    const row = this.getByIdStmt.get(id);
-    return row ? rowToNode(row) : null;
-  }
-
-  getByType(type: NodeType): CognitiveNode[] {
-    const rows = this.getByTypeStmt.all(type) as any[];
+  async getByType(type: NodeType): Promise<CognitiveNode[]> {
+    const rows = await this.sql`
+      SELECT * FROM nodes WHERE type = ${type} AND project_id = ${this.projectId}
+    `;
     return rows.map(rowToNode);
   }
 
-  getByTypeAndStatus(type: NodeType, status: string): CognitiveNode[] {
-    const rows = this.getByTypeStatusStmt.all(type, status) as any[];
+  async getByTypeAndStatus(type: NodeType, status: string): Promise<CognitiveNode[]> {
+    const rows = await this.sql`
+      SELECT * FROM nodes WHERE type = ${type} AND status = ${status} AND project_id = ${this.projectId}
+    `;
     return rows.map(rowToNode);
   }
 
-  delete(id: string): void {
-    this.deleteStmt.run(id);
+  async delete(id: string): Promise<void> {
+    await this.sql`DELETE FROM nodes WHERE id = ${id} AND project_id = ${this.projectId}`;
   }
 
-  search(query: string): CognitiveNode[] {
-    const rows = this.searchStmt.all(query) as any[];
+  async search(query: string): Promise<CognitiveNode[]> {
+    // 将空格分隔的词转为 tsquery OR 格式，使用前缀匹配
+    const terms = query.trim().split(/\s+/).filter(Boolean);
+    const tsquery = terms.map(t => t.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '')).filter(Boolean).map(t => `${t}:*`).join(' | ');
+    if (!tsquery) return [];
+    const rows = await this.sql`
+      SELECT * FROM nodes
+      WHERE project_id = ${this.projectId}
+        AND search_vector @@ to_tsquery('simple', ${tsquery})
+      ORDER BY ts_rank(search_vector, to_tsquery('simple', ${tsquery})) DESC
+    `;
     return rows.map(rowToNode);
   }
 }
 
 // ============================================================
-// 边存储
+// EdgeStore
 // ============================================================
 
 export class EdgeStore {
-  private insertStmt: Statement;
-  private getBySourceStmt: Statement;
-  private getByTargetStmt: Statement;
-  private getByNodeStmt: Statement;
-  private deleteStmt: Statement;
+  constructor(private sql: Sql, private projectId: string) {}
 
-  constructor(private db: BetterSqlite3.Database) {
-    this.insertStmt = db.prepare(`
-      INSERT INTO edges (id, source_id, target_id, relation, weight, annotation, created_at)
-      VALUES (@id, @source_id, @target_id, @relation, @weight, @annotation, @created_at)
-    `);
-
-    this.getBySourceStmt = db.prepare('SELECT * FROM edges WHERE source_id = ?');
-    this.getByTargetStmt = db.prepare('SELECT * FROM edges WHERE target_id = ?');
-    this.getByNodeStmt = db.prepare('SELECT * FROM edges WHERE source_id = ? OR target_id = ?');
-    this.deleteStmt = db.prepare('DELETE FROM edges WHERE id = ?');
+  async insert(edge: Edge): Promise<void> {
+    const e = edge as any;
+    await this.sql`
+      INSERT INTO edges (id, project_id, source_id, target_id, relation, weight, annotation, created_at)
+      VALUES (${e.id}, ${this.projectId}, ${e.source_id}, ${e.target_id},
+              ${e.relation}, ${e.weight ?? null}, ${e.annotation ?? null}, ${e.created_at})
+    `;
   }
 
-  insert(edge: Edge): void {
-    this.insertStmt.run({
-      id: edge.id,
-      source_id: edge.source_id,
-      target_id: edge.target_id,
-      relation: edge.relation,
-      weight: edge.weight,
-      annotation: edge.annotation,
-      created_at: edge.created_at,
-    });
+  async getBySource(sourceId: string): Promise<Edge[]> {
+    const rows = await this.sql`
+      SELECT * FROM edges WHERE source_id = ${sourceId} AND project_id = ${this.projectId}
+    `;
+    return rows.map(rowToEdge);
   }
 
-  getBySource(sourceId: string): Edge[] {
-    return this.getBySourceStmt.all(sourceId) as Edge[];
+  async getByTarget(targetId: string): Promise<Edge[]> {
+    const rows = await this.sql`
+      SELECT * FROM edges WHERE target_id = ${targetId} AND project_id = ${this.projectId}
+    `;
+    return rows.map(rowToEdge);
   }
 
-  getByTarget(targetId: string): Edge[] {
-    return this.getByTargetStmt.all(targetId) as Edge[];
+  async getByNode(nodeId: string): Promise<Edge[]> {
+    const rows = await this.sql`
+      SELECT * FROM edges
+      WHERE (source_id = ${nodeId} OR target_id = ${nodeId}) AND project_id = ${this.projectId}
+    `;
+    return rows.map(rowToEdge);
   }
 
-  getByNode(nodeId: string): Edge[] {
-    return this.getByNodeStmt.all(nodeId, nodeId) as Edge[];
-  }
-
-  delete(id: string): void {
-    this.deleteStmt.run(id);
+  async delete(id: string): Promise<void> {
+    await this.sql`DELETE FROM edges WHERE id = ${id} AND project_id = ${this.projectId}`;
   }
 }
 
 // ============================================================
-// 事件存储
+// EventStore
 // ============================================================
 
 export class EventStore {
-  private insertStmt: Statement;
-  private getByNodeStmt: Statement;
-  private getRecentStmt: Statement;
-  private getSinceStmt: Statement;
+  constructor(private sql: Sql, private projectId: string) {}
 
-  constructor(private db: BetterSqlite3.Database) {
-    this.insertStmt = db.prepare(`
-      INSERT INTO events (id, timestamp, event_type, actor, operation, node_id, node_type, payload, diff, context)
-      VALUES (@id, @timestamp, @event_type, @actor, @operation, @node_id, @node_type, @payload, @diff, @context)
-    `);
-
-    this.getByNodeStmt = db.prepare(
-      'SELECT * FROM events WHERE node_id = ? ORDER BY timestamp ASC'
-    );
-
-    this.getRecentStmt = db.prepare(
-      'SELECT * FROM events ORDER BY timestamp DESC LIMIT ?'
-    );
-
-    this.getSinceStmt = db.prepare(
-      'SELECT * FROM events WHERE timestamp >= ? ORDER BY timestamp ASC'
-    );
+  async insert(event: EventRecord): Promise<void> {
+    const e = event as any;
+    await this.sql`
+      INSERT INTO events (id, project_id, timestamp, event_type, actor, operation, node_id, node_type, payload, diff, context)
+      VALUES (${e.id}, ${this.projectId}, ${e.timestamp}, ${e.event_type}, ${e.actor ?? 'user'},
+              ${e.operation}, ${e.node_id ?? null}, ${e.node_type ?? null},
+              ${JSON.stringify(e.payload ?? {})}, ${e.diff ? JSON.stringify(e.diff) : null}, ${e.context ?? null})
+    `;
   }
 
-  insert(event: EventRecord): void {
-    this.insertStmt.run({
-      id: event.id,
-      timestamp: event.timestamp,
-      event_type: event.event_type,
-      actor: event.actor,
-      operation: event.operation,
-      node_id: event.node_id,
-      node_type: event.node_type,
-      payload: JSON.stringify(event.payload),
-      diff: event.diff ? JSON.stringify(event.diff) : null,
-      context: event.context,
-    });
+  async getByNode(nodeId: string): Promise<EventRecord[]> {
+    const rows = await this.sql`
+      SELECT * FROM events WHERE node_id = ${nodeId} AND project_id = ${this.projectId} ORDER BY timestamp ASC
+    `;
+    return rows.map(rowToEvent);
   }
 
-  getByNode(nodeId: string): EventRecord[] {
-    const rows = this.getByNodeStmt.all(nodeId) as any[];
-    return rows.map(this.rowToEvent);
+  async getRecent(limit: number = 20): Promise<EventRecord[]> {
+    const rows = await this.sql`
+      SELECT * FROM events WHERE project_id = ${this.projectId} ORDER BY timestamp DESC LIMIT ${limit}
+    `;
+    return rows.map(rowToEvent);
   }
 
-  getRecent(limit: number = 20): EventRecord[] {
-    const rows = this.getRecentStmt.all(limit) as any[];
-    return rows.map(this.rowToEvent);
-  }
-
-  getSince(since: string): EventRecord[] {
-    const rows = this.getSinceStmt.all(since) as any[];
-    return rows.map(this.rowToEvent);
-  }
-
-  private rowToEvent(row: any): EventRecord {
-    return {
-      ...row,
-      payload: JSON.parse(row.payload),
-      diff: row.diff ? JSON.parse(row.diff) : null,
-    };
+  async getSince(since: string): Promise<EventRecord[]> {
+    const rows = await this.sql`
+      SELECT * FROM events WHERE timestamp >= ${since} AND project_id = ${this.projectId} ORDER BY timestamp ASC
+    `;
+    return rows.map(rowToEvent);
   }
 }
