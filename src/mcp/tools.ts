@@ -15,7 +15,7 @@ import {
   createTask, updateTaskStatus,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
-  linkNodes, getProjectState, getNodeContext,
+  linkNodes, getProjectState, getNodeContext, getTaskContext,
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
 } from '../operations/index.js';
@@ -293,6 +293,12 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     include_events: z.boolean().optional().describe('是否包含事件历史'),
   }, async (args) => {
     return jsonResult(getNodeContext(getCtx(), args.node_id, args.include_events ?? true));
+  });
+
+  server.tool('get_task_context', '获取任务执行上下文（含父目标、关联决策、知识、风险）', {
+    task_id: z.string().describe('任务 ID'),
+  }, async (args) => {
+    return jsonResult(getTaskContext(getCtx(), args.task_id));
   });
 
   server.tool('search_nodes', '全文搜索节点', {
@@ -618,6 +624,12 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     include_events: z.boolean().optional(),
   }, async ({ project, ...args }) => {
     return jsonResult(getNodeContext(ctx(project), args.node_id, args.include_events ?? true));
+  });
+
+  server.tool('get_task_context', '获取任务执行上下文（含父目标、关联决策、知识、风险）', {
+    project: projectParam, task_id: z.string().describe('任务 ID'),
+  }, async ({ project, ...args }) => {
+    return jsonResult(getTaskContext(ctx(project), args.task_id));
   });
 
   server.tool('search_nodes', '全文搜索节点', { project: projectParam, query: z.string() }, async ({ project, query }) => {

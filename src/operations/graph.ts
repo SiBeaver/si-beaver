@@ -113,3 +113,60 @@ export function getNodeContext(ctx: OperationContext, nodeId: string, includeEve
 
   return { node, edges, neighbors, events };
 }
+
+// ============================================================
+// get_task_context — subagent 友好的任务上下文
+// ============================================================
+
+export function getTaskContext(ctx: OperationContext, taskId: string) {
+  const task = ctx.nodes.getById(taskId);
+  if (!task) throw new Error(`Task not found: ${taskId}`);
+  if (task.type !== 'task') throw new Error(`Node ${taskId} is not a task (got ${task.type})`);
+
+  const edges = ctx.edges.getByNode(taskId);
+
+  // Find parent goal (task is target of decomposes_into)
+  let parent_goal = null;
+  for (const e of edges) {
+    if (e.relation === 'decomposes_into' && e.target_id === taskId) {
+      const node = ctx.nodes.getById(e.source_id);
+      if (node?.type === 'goal') { parent_goal = node; break; }
+    }
+  }
+
+  // Collect related nodes by type
+  const related_decisions: any[] = [];
+  const related_knowledge: any[] = [];
+  const related_risks: any[] = [];
+  const related_tech_debt: any[] = [];
+
+  const neighborIds = new Set<string>();
+  for (const e of edges) {
+    const otherId = e.source_id === taskId ? e.target_id : e.source_id;
+    neighborIds.add(otherId);
+  }
+
+  for (const id of neighborIds) {
+    const node = ctx.nodes.getById(id);
+    if (!node) continue;
+    switch (node.type) {
+      case 'decision': related_decisions.push(node); break;
+      case 'knowledge': related_knowledge.push(node); break;
+      case 'risk': related_risks.push(node); break;
+      case 'tech_debt': related_tech_debt.push(node); break;
+    }
+  }
+
+  // Recent events on this task
+  const events = ctx.eventStore.getByNode(taskId).slice(-10);
+
+  return {
+    task,
+    parent_goal,
+    related_decisions,
+    related_knowledge,
+    related_risks,
+    related_tech_debt,
+    events,
+  };
+}

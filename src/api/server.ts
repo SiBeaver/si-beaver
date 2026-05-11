@@ -15,7 +15,7 @@ import {
   createTask, updateTaskStatus,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
-  linkNodes, getProjectState, getNodeContext,
+  linkNodes, getProjectState, getNodeContext, getTaskContext,
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
 } from '../operations/index.js';
@@ -104,6 +104,16 @@ app.get('/api/v1/projects/:slug/nodes/:id', (c) => {
   const nodeId = c.req.param('id');
   try {
     return json(c, getNodeContext(getCtx(slug), nodeId));
+  } catch (e: any) {
+    return json(c, { error: e.message }, 404);
+  }
+});
+
+app.get('/api/v1/projects/:slug/tasks/:id/context', (c) => {
+  const slug = c.req.param('slug');
+  const taskId = c.req.param('id');
+  try {
+    return json(c, getTaskContext(getCtx(slug), taskId));
   } catch (e: any) {
     return json(c, { error: e.message }, 404);
   }
