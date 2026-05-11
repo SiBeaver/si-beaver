@@ -21,6 +21,12 @@ import {
 } from '../operations/index.js';
 import type { OperationContext } from '../operations/context.js';
 import type { ProjectManager } from '../projects/index.js';
+import { snakeToCamel } from '../api/transforms.js';
+
+/** Wrap result: apply camelCase transform + JSON serialize for MCP text output */
+function jsonResult(data: unknown) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(snakeToCamel(data), null, 2) }] };
+}
 
 // ============================================================
 // Types
@@ -59,7 +65,7 @@ export function registerTools(server: McpServer, opts: RegisterToolsOptions): vo
 function registerScopedTools(server: McpServer, getCtx: () => OperationContext, slug: string): void {
   // --- 项目信息 ---
   server.tool('get_project_info', '获取当前绑定的项目信息', {}, async () => {
-    return { content: [{ type: 'text', text: JSON.stringify({ slug, message: `此连接绑定项目 "${slug}"` }, null, 2) }] };
+    return jsonResult({ slug, message: `此连接绑定项目 "${slug}"` });
   });
 
   // --- 目标 ---
@@ -72,7 +78,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     parent_goal: z.string().optional().describe('父目标 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(defineGoal(getCtx(), args), null, 2) }] };
+    return jsonResult(defineGoal(getCtx(), args));
   });
 
   server.tool('decompose_goal', '将目标分解为子目标、任务和需要的探索', {
@@ -93,7 +99,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
       topic: z.string(), reason: z.string(), hypothesis: z.string().optional(),
     })).optional().describe('需要的探索'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(decomposeGoal(getCtx(), args), null, 2) }] };
+    return jsonResult(decomposeGoal(getCtx(), args));
   });
 
   server.tool('update_goal_status', '更新目标状态', {
@@ -101,7 +107,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     new_status: z.enum(['active', 'achieved', 'abandoned', 'deferred']).describe('新状态'),
     reason: z.string().describe('变更原因'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(updateGoalStatus(getCtx(), args), null, 2) }] };
+    return jsonResult(updateGoalStatus(getCtx(), args));
   });
 
   // --- 探索 ---
@@ -114,7 +120,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     triggered_by: z.string().optional().describe('触发此探索的节点 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(beginExploration(getCtx(), args), null, 2) }] };
+    return jsonResult(beginExploration(getCtx(), args));
   });
 
   server.tool('record_exploration_finding', '记录探索过程中的发现', {
@@ -123,7 +129,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     significance: z.enum(['minor', 'major', 'breakthrough']).describe('重要程度'),
     related_nodes: z.array(z.string()).optional().describe('关联节点 ID'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(recordExplorationFinding(getCtx(), args), null, 2) }] };
+    return jsonResult(recordExplorationFinding(getCtx(), args));
   });
 
   server.tool('conclude_exploration', '结论化探索，产出决策/知识/后续任务', {
@@ -143,7 +149,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
       effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
     })).optional().describe('后续任务'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(concludeExploration(getCtx(), args), null, 2) }] };
+    return jsonResult(concludeExploration(getCtx(), args));
   });
 
   server.tool('abandon_exploration', '放弃探索', {
@@ -151,7 +157,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     reason: z.string().describe('放弃原因'),
     learnings: z.string().optional().describe('尽管失败但学到的东西'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(abandonExploration(getCtx(), args), null, 2) }] };
+    return jsonResult(abandonExploration(getCtx(), args));
   });
 
   // --- 决策 ---
@@ -179,7 +185,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     })).optional().describe('此决策引入的技术债'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(recordDecision(getCtx(), args), null, 2) }] };
+    return jsonResult(recordDecision(getCtx(), args));
   });
 
   // --- 任务 ---
@@ -194,7 +200,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     mitigates_risk: z.string().optional().describe('缓解的风险 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(createTask(getCtx(), args), null, 2) }] };
+    return jsonResult(createTask(getCtx(), args));
   });
 
   server.tool('update_task_status', '更新任务状态', {
@@ -207,7 +213,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
       uri: z.string().optional(), content_summary: z.string().optional(),
     })).optional().describe('完成时产出的产物'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(updateTaskStatus(getCtx(), args), null, 2) }] };
+    return jsonResult(updateTaskStatus(getCtx(), args));
   });
 
   // --- 风险与技术债 ---
@@ -221,7 +227,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     mitigation_strategy: z.string().optional().describe('缓解策略'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(identifyRisk(getCtx(), args), null, 2) }] };
+    return jsonResult(identifyRisk(getCtx(), args));
   });
 
   server.tool('update_risk', '更新风险状态或评估', {
@@ -232,7 +238,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     mitigation_strategy: z.string().optional(),
     reason: z.string().describe('更新原因'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(updateRisk(getCtx(), args), null, 2) }] };
+    return jsonResult(updateRisk(getCtx(), args));
   });
 
   server.tool('register_tech_debt', '注册一项技术债', {
@@ -246,7 +252,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     blocks: z.array(z.string()).optional().describe('被此债务阻碍的节点 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(registerTechDebt(getCtx(), args), null, 2) }] };
+    return jsonResult(registerTechDebt(getCtx(), args));
   });
 
   // --- 知识 ---
@@ -260,7 +266,7 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     invalidates: z.array(z.string()).optional().describe('被此知识取代的旧知识 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(recordKnowledge(getCtx(), args), null, 2) }] };
+    return jsonResult(recordKnowledge(getCtx(), args));
   });
 
   // --- 图操作 ---
@@ -274,25 +280,25 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     ]).describe('关系类型'),
     annotation: z.string().optional().describe('关系说明'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(linkNodes(getCtx(), args), null, 2) }] };
+    return jsonResult(linkNodes(getCtx(), args));
   });
 
   // --- 读操作 ---
   server.tool('get_project_state', '获取项目认知状态快照', {}, async () => {
-    return { content: [{ type: 'text', text: JSON.stringify(getProjectState(getCtx()), null, 2) }] };
+    return jsonResult(getProjectState(getCtx()));
   });
 
   server.tool('get_node_context', '获取节点完整上下文', {
     node_id: z.string().describe('节点 ID'),
     include_events: z.boolean().optional().describe('是否包含事件历史'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(getNodeContext(getCtx(), args.node_id, args.include_events ?? true), null, 2) }] };
+    return jsonResult(getNodeContext(getCtx(), args.node_id, args.include_events ?? true));
   });
 
   server.tool('search_nodes', '全文搜索节点', {
     query: z.string().describe('搜索关键词'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(getCtx().nodes.search(args.query), null, 2) }] };
+    return jsonResult(getCtx().nodes.search(args.query));
   });
 
   server.tool('get_roadmap', '获取目标路线图', {
@@ -300,45 +306,45 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     include_completed: z.boolean().optional().describe('是否包含已完成的目标'),
     max_depth: z.number().optional().describe('最大展开深度'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(getRoadmap(getCtx(), args), null, 2) }] };
+    return jsonResult(getRoadmap(getCtx(), args));
   });
 
   server.tool('goal_progress', '获取活跃目标进度', {}, async () => {
-    return { content: [{ type: 'text', text: JSON.stringify(goalProgress(getCtx()), null, 2) }] };
+    return jsonResult(goalProgress(getCtx()));
   });
 
   server.tool('decision_trail', '追溯决策链', {
     node_id: z.string().describe('起始节点 ID'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(decisionTrail(getCtx(), args.node_id), null, 2) }] };
+    return jsonResult(decisionTrail(getCtx(), args.node_id));
   });
 
   server.tool('knowledge_map', '按领域查看知识图谱', {
     domain: z.string().optional().describe('过滤领域'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(knowledgeMap(getCtx(), args.domain), null, 2) }] };
+    return jsonResult(knowledgeMap(getCtx(), args.domain));
   });
 
   server.tool('stale_items', '查找长时间未更新的活跃节点', {
     days: z.number().optional().describe('超过多少天视为过期，默认 7'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(staleItems(getCtx(), args.days), null, 2) }] };
+    return jsonResult(staleItems(getCtx(), args.days));
   });
 
   server.tool('current_blockers', '查找阻塞项', {}, async () => {
-    return { content: [{ type: 'text', text: JSON.stringify(currentBlockers(getCtx()), null, 2) }] };
+    return jsonResult(currentBlockers(getCtx()));
   });
 
   server.tool('recent_activity', '获取最近事件', {
     limit: z.number().optional().describe('返回事件数量，默认 20'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(recentActivity(getCtx(), args.limit), null, 2) }] };
+    return jsonResult(recentActivity(getCtx(), args.limit));
   });
 
   server.tool('full_text_search', '全文搜索所有节点', {
     query: z.string().describe('搜索关键词'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(fullTextSearch(getCtx(), args.query), null, 2) }] };
+    return jsonResult(fullTextSearch(getCtx(), args.query));
   });
 }
 
@@ -355,7 +361,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
 
   // --- 项目管理 ---
   server.tool('list_projects', '列出所有项目', {}, async () => {
-    return { content: [{ type: 'text', text: JSON.stringify(manager.listProjects(), null, 2) }] };
+    return jsonResult(manager.listProjects());
   });
 
   server.tool('create_project', '创建一个新项目', {
@@ -363,7 +369,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     name: z.string().describe('项目显示名称'),
     description: z.string().optional().describe('项目描述'),
   }, async (args) => {
-    return { content: [{ type: 'text', text: JSON.stringify(manager.createProject(args), null, 2) }] };
+    return jsonResult(manager.createProject(args));
   });
 
   server.tool('set_default_project', '设置默认项目', {
@@ -376,7 +382,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
   server.tool('get_current_project', '获取当前默认项目', {}, async () => {
     const slug = manager.getDefaultProject();
     const project = manager.getProject(slug);
-    return { content: [{ type: 'text', text: JSON.stringify({ slug, project }, null, 2) }] };
+    return jsonResult({ slug, project });
   });
 
   // --- 目标 ---
@@ -390,7 +396,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     parent_goal: z.string().optional().describe('父目标 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(defineGoal(ctx(project), args), null, 2) }] };
+    return jsonResult(defineGoal(ctx(project), args));
   });
 
   server.tool('decompose_goal', '将目标分解为子目标、任务和需要的探索', {
@@ -412,7 +418,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
       topic: z.string(), reason: z.string(), hypothesis: z.string().optional(),
     })).optional().describe('需要的探索'),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(decomposeGoal(ctx(project), args), null, 2) }] };
+    return jsonResult(decomposeGoal(ctx(project), args));
   });
 
   server.tool('update_goal_status', '更新目标状态', {
@@ -421,7 +427,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     new_status: z.enum(['active', 'achieved', 'abandoned', 'deferred']).describe('新状态'),
     reason: z.string().describe('变更原因'),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(updateGoalStatus(ctx(project), args), null, 2) }] };
+    return jsonResult(updateGoalStatus(ctx(project), args));
   });
 
   // --- 探索 ---
@@ -435,7 +441,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     triggered_by: z.string().optional().describe('触发此探索的节点 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(beginExploration(ctx(project), args), null, 2) }] };
+    return jsonResult(beginExploration(ctx(project), args));
   });
 
   server.tool('record_exploration_finding', '记录探索过程中的发现', {
@@ -445,7 +451,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     significance: z.enum(['minor', 'major', 'breakthrough']).describe('重要程度'),
     related_nodes: z.array(z.string()).optional().describe('关联节点 ID'),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(recordExplorationFinding(ctx(project), args), null, 2) }] };
+    return jsonResult(recordExplorationFinding(ctx(project), args));
   });
 
   server.tool('conclude_exploration', '结论化探索', {
@@ -466,7 +472,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
       effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
     })).optional().describe('后续任务'),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(concludeExploration(ctx(project), args), null, 2) }] };
+    return jsonResult(concludeExploration(ctx(project), args));
   });
 
   server.tool('abandon_exploration', '放弃探索', {
@@ -475,7 +481,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     reason: z.string().describe('放弃原因'),
     learnings: z.string().optional().describe('学到的东西'),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(abandonExploration(ctx(project), args), null, 2) }] };
+    return jsonResult(abandonExploration(ctx(project), args));
   });
 
   // --- 决策 ---
@@ -504,7 +510,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     })).optional(),
     tags: z.array(z.string()).optional(),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(recordDecision(ctx(project), args), null, 2) }] };
+    return jsonResult(recordDecision(ctx(project), args));
   });
 
   // --- 任务 ---
@@ -520,7 +526,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     mitigates_risk: z.string().optional(),
     tags: z.array(z.string()).optional(),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(createTask(ctx(project), args), null, 2) }] };
+    return jsonResult(createTask(ctx(project), args));
   });
 
   server.tool('update_task_status', '更新任务状态', {
@@ -534,7 +540,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
       uri: z.string().optional(), content_summary: z.string().optional(),
     })).optional(),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(updateTaskStatus(ctx(project), args), null, 2) }] };
+    return jsonResult(updateTaskStatus(ctx(project), args));
   });
 
   // --- 风险与技术债 ---
@@ -548,7 +554,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     mitigation_strategy: z.string().optional(),
     tags: z.array(z.string()).optional(),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(identifyRisk(ctx(project), args), null, 2) }] };
+    return jsonResult(identifyRisk(ctx(project), args));
   });
 
   server.tool('update_risk', '更新风险', {
@@ -559,7 +565,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     impact: z.enum(['low', 'medium', 'high', 'critical']).optional(),
     mitigation_strategy: z.string().optional(),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(updateRisk(ctx(project), args), null, 2) }] };
+    return jsonResult(updateRisk(ctx(project), args));
   });
 
   server.tool('register_tech_debt', '注册技术债', {
@@ -572,7 +578,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     blocks: z.array(z.string()).optional(),
     tags: z.array(z.string()).optional(),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(registerTechDebt(ctx(project), args), null, 2) }] };
+    return jsonResult(registerTechDebt(ctx(project), args));
   });
 
   // --- 知识 ---
@@ -585,7 +591,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     invalidates: z.array(z.string()).optional(),
     tags: z.array(z.string()).optional(),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(recordKnowledge(ctx(project), args), null, 2) }] };
+    return jsonResult(recordKnowledge(ctx(project), args));
   });
 
   // --- 图操作 ---
@@ -599,57 +605,57 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     ]),
     annotation: z.string().optional(),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(linkNodes(ctx(project), args), null, 2) }] };
+    return jsonResult(linkNodes(ctx(project), args));
   });
 
   // --- 读操作 ---
   server.tool('get_project_state', '获取项目认知状态快照', { project: projectParam }, async ({ project }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(getProjectState(ctx(project)), null, 2) }] };
+    return jsonResult(getProjectState(ctx(project)));
   });
 
   server.tool('get_node_context', '获取节点完整上下文', {
     project: projectParam, node_id: z.string(),
     include_events: z.boolean().optional(),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(getNodeContext(ctx(project), args.node_id, args.include_events ?? true), null, 2) }] };
+    return jsonResult(getNodeContext(ctx(project), args.node_id, args.include_events ?? true));
   });
 
   server.tool('search_nodes', '全文搜索节点', { project: projectParam, query: z.string() }, async ({ project, query }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(ctx(project).nodes.search(query), null, 2) }] };
+    return jsonResult(ctx(project).nodes.search(query));
   });
 
   server.tool('get_roadmap', '获取路线图', {
     project: projectParam, root_goal: z.string().optional(),
     include_completed: z.boolean().optional(), max_depth: z.number().optional(),
   }, async ({ project, ...args }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(getRoadmap(ctx(project), args), null, 2) }] };
+    return jsonResult(getRoadmap(ctx(project), args));
   });
 
   server.tool('goal_progress', '获取目标进度', { project: projectParam }, async ({ project }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(goalProgress(ctx(project)), null, 2) }] };
+    return jsonResult(goalProgress(ctx(project)));
   });
 
   server.tool('decision_trail', '追溯决策链', { project: projectParam, node_id: z.string() }, async ({ project, node_id }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(decisionTrail(ctx(project), node_id), null, 2) }] };
+    return jsonResult(decisionTrail(ctx(project), node_id));
   });
 
   server.tool('knowledge_map', '查看知识图谱', { project: projectParam, domain: z.string().optional() }, async ({ project, domain }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(knowledgeMap(ctx(project), domain), null, 2) }] };
+    return jsonResult(knowledgeMap(ctx(project), domain));
   });
 
   server.tool('stale_items', '查找过期节点', { project: projectParam, days: z.number().optional() }, async ({ project, days }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(staleItems(ctx(project), days), null, 2) }] };
+    return jsonResult(staleItems(ctx(project), days));
   });
 
   server.tool('current_blockers', '查找阻塞项', { project: projectParam }, async ({ project }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(currentBlockers(ctx(project)), null, 2) }] };
+    return jsonResult(currentBlockers(ctx(project)));
   });
 
   server.tool('recent_activity', '获取最近事件', { project: projectParam, limit: z.number().optional() }, async ({ project, limit }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(recentActivity(ctx(project), limit), null, 2) }] };
+    return jsonResult(recentActivity(ctx(project), limit));
   });
 
   server.tool('full_text_search', '全文搜索', { project: projectParam, query: z.string() }, async ({ project, query }) => {
-    return { content: [{ type: 'text', text: JSON.stringify(fullTextSearch(ctx(project), query), null, 2) }] };
+    return jsonResult(fullTextSearch(ctx(project), query));
   });
 }
