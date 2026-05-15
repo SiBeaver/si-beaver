@@ -1,6 +1,6 @@
 {
   "name": "si-beaver",
-  "version": "26.5.0",
+  "version": "26.5.1",
   "description": "AI 原生项目认知平台 — 项目级长期记忆与语义 API",
   "type": "module",
   "main": "dist/index.js",

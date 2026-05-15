@@ -8,7 +8,7 @@ import type { EventRecord } from '../core/events/types.js';
 // ============================================================
 
 function rowToNode(row: any): CognitiveNode {
-  const { project_id, search_vector, data, tags, metadata, ...rest } = row;
+  const { project_id, search_vector, embedding, data, tags, metadata, ...rest } = row;
   const parsedData = typeof data === 'string' ? JSON.parse(data) : (data ?? {});
   const parsedTags = typeof tags === 'string' ? JSON.parse(tags) : (tags ?? []);
   const parsedMeta = typeof metadata === 'string' ? JSON.parse(metadata) : (metadata ?? {});
@@ -59,7 +59,8 @@ export class NodeStore {
       UPDATE nodes SET
         title = ${title ?? ''}, description = ${description ?? ''}, status = ${status},
         tags = ${JSON.stringify(tags ?? [])}, updated_at = ${updated_at},
-        metadata = ${JSON.stringify(metadata ?? {})}, data = ${JSON.stringify(data)}
+        metadata = ${JSON.stringify(metadata ?? {})}, data = ${JSON.stringify(data)},
+        embedding = NULL
       WHERE id = ${id} AND project_id = ${this.projectId}
     `;
   }
@@ -101,6 +102,57 @@ export class NodeStore {
       ORDER BY ts_rank(search_vector, to_tsquery('simple', ${tsquery})) DESC
     `;
     return rows.map(rowToNode);
+  }
+
+  // ---- Embedding methods ----
+
+  async updateEmbedding(id: string, embedding: number[]): Promise<void> {
+    const vecStr = `[${embedding.join(',')}]`;
+    await this.sql`
+      UPDATE nodes SET embedding = ${vecStr}::vector
+      WHERE id = ${id} AND project_id = ${this.projectId}
+    `;
+  }
+
+  async clearEmbedding(id: string): Promise<void> {
+    await this.sql`
+      UPDATE nodes SET embedding = NULL
+      WHERE id = ${id} AND project_id = ${this.projectId}
+    `;
+  }
+
+  async getWithoutEmbedding(types: string[], limit: number = 32): Promise<CognitiveNode[]> {
+    const rows = await this.sql`
+      SELECT * FROM nodes
+      WHERE project_id = ${this.projectId}
+        AND type = ANY(${types})
+        AND embedding IS NULL
+      LIMIT ${limit}
+    `;
+    return rows.map(rowToNode);
+  }
+
+  async similaritySearch(embedding: number[], topK: number = 10, types?: string[]): Promise<Array<CognitiveNode & { distance: number }>> {
+    const vecStr = `[${embedding.join(',')}]`;
+    const rows = types && types.length > 0
+      ? await this.sql`
+          SELECT *, embedding <=> ${vecStr}::vector AS distance
+          FROM nodes
+          WHERE project_id = ${this.projectId}
+            AND embedding IS NOT NULL
+            AND type = ANY(${types})
+          ORDER BY embedding <=> ${vecStr}::vector
+          LIMIT ${topK}
+        `
+      : await this.sql`
+          SELECT *, embedding <=> ${vecStr}::vector AS distance
+          FROM nodes
+          WHERE project_id = ${this.projectId}
+            AND embedding IS NOT NULL
+          ORDER BY embedding <=> ${vecStr}::vector
+          LIMIT ${topK}
+        `;
+    return rows.map(r => ({ ...rowToNode(r), distance: parseFloat(r.distance) }));
   }
 }
 

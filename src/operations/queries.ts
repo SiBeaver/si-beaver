@@ -153,9 +153,10 @@ export async function decisionTrail(ctx: OperationContext, nodeId: string) {
 
 export async function knowledgeMap(ctx: OperationContext, domain?: string) {
   const allKnowledge = await ctx.nodes.getByType('knowledge');
-  const filtered = domain
-    ? allKnowledge.filter(k => (k as any).domain === domain)
-    : allKnowledge;
+  const filtered = allKnowledge
+    .filter(k => !STALE_STATUSES.includes(k.status))
+    .filter(k => !domain || (k as any).domain === domain)
+    .sort((a, b) => sortScore(b) - sortScore(a));
 
   // 按 domain 分组
   const byDomain: Record<string, CognitiveNode[]> = {};
@@ -229,7 +230,22 @@ export async function recentActivity(ctx: OperationContext, limit: number = 20) 
 // full_text_search — 全文搜索（操作层封装）
 // ============================================================
 
+/** 被视为"已失效"的节点状态，默认从检索结果中过滤 */
+const STALE_STATUSES = ['superseded', 'outdated', 'deprecated'];
+
+/** 结构化排序权重：confidence → 时间（新优先） */
+function sortScore(node: CognitiveNode): number {
+  const confidenceMap: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  const confidence = (node as any).confidence as string | undefined;
+  const cScore = confidenceMap[confidence ?? 'medium'] ?? 2;
+  const tScore = new Date(node.updated_at).getTime() / 1e12; // 归一化到 ~1.7
+  return cScore + tScore;
+}
+
 export async function fullTextSearch(ctx: OperationContext, query: string) {
-  const results = await ctx.nodes.search(query);
+  const raw = await ctx.nodes.search(query);
+  const results = raw
+    .filter(n => !STALE_STATUSES.includes(n.status))
+    .sort((a, b) => sortScore(b) - sortScore(a));
   return { query, results, count: results.length };
 }

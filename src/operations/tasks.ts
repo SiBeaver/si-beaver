@@ -79,6 +79,79 @@ export async function createTask(ctx: OperationContext, input: CreateTaskInput) 
 }
 
 // ============================================================
+// backfill_task — 补录历史任务，允许跳跃状态
+// ============================================================
+
+export interface BackfillTaskInput {
+  task_id: string;
+  new_status: 'done' | 'cancelled';
+  reason?: string;
+  artifacts?: {
+    title: string;
+    artifact_type: 'document' | 'design' | 'pr' | 'commit' | 'prototype' | 'spec' | 'other';
+    uri?: string;
+    content_summary?: string;
+  }[];
+}
+
+export async function backfillTask(ctx: OperationContext, input: BackfillTaskInput) {
+  const node = await ctx.nodes.getById(input.task_id);
+  if (!node || node.type !== 'task') {
+    throw new Error(`Task not found: ${input.task_id}`);
+  }
+
+  const task = node as TaskNode;
+  const oldStatus = task.status;
+
+  if (input.new_status === oldStatus) {
+    throw new Error(`Task is already ${input.new_status}`);
+  }
+
+  const now = new Date().toISOString();
+  const updated: TaskNode = {
+    ...task,
+    status: input.new_status,
+    updated_at: now,
+  };
+  await ctx.nodes.update(updated);
+
+  const artifacts_created: any[] = [];
+  const edges_created: Edge[] = [];
+
+  for (const a of input.artifacts ?? []) {
+    const artifact = {
+      id: ulid(), type: 'artifact' as const, title: a.title,
+      description: '', status: 'active' as const,
+      tags: [], created_at: now, updated_at: now, metadata: {},
+      artifact_type: a.artifact_type,
+      uri: a.uri ?? null,
+      content_summary: a.content_summary ?? null,
+    };
+    await ctx.nodes.insert(artifact);
+    artifacts_created.push(artifact);
+
+    const edge: Edge = {
+      id: ulid(), source_id: input.task_id, target_id: artifact.id,
+      relation: 'evidenced_by', weight: null, annotation: null, created_at: now,
+    };
+    await ctx.edges.insert(edge);
+    edges_created.push(edge);
+  }
+
+  const event = await ctx.events.emit({
+    event_type: 'task.backfilled',
+    operation: 'backfill_task',
+    node_id: input.task_id,
+    node_type: 'task',
+    payload: { reason: input.reason ?? null, artifacts: artifacts_created.length, old_status: oldStatus },
+    diff: [{ field: 'status', old_value: oldStatus, new_value: input.new_status }],
+    context: input.reason ?? null,
+  });
+
+  return { task: updated, artifacts_created, edges_created, event };
+}
+
+// ============================================================
 // update_task_status — 更新任务状态
 // ============================================================
 

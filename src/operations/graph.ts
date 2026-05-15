@@ -64,7 +64,9 @@ export async function getProjectState(ctx: OperationContext) {
   const goals = await ctx.nodes.getByType('goal');
   const active_goals = goals.filter(g => g.status === 'active');
   const explorations = await ctx.nodes.getByTypeAndStatus('exploration', 'active');
-  const recent_decisions = (await ctx.nodes.getByType('decision')).slice(-10);
+  const recent_decisions = (await ctx.nodes.getByType('decision'))
+    .filter(d => !['superseded', 'deprecated'].includes(d.status))
+    .slice(-10);
   const open_risks = (await ctx.nodes.getByType('risk')).filter(r => !['resolved', 'accepted'].includes(r.status));
   const tech_debt = (await ctx.nodes.getByType('tech_debt')).filter(td => td.status !== 'resolved');
   const tasks = await ctx.nodes.getByType('task');
@@ -150,8 +152,12 @@ export async function getTaskContext(ctx: OperationContext, taskId: string) {
     const node = await ctx.nodes.getById(id);
     if (!node) continue;
     switch (node.type) {
-      case 'decision': related_decisions.push(node); break;
-      case 'knowledge': related_knowledge.push(node); break;
+      case 'decision':
+        if (!['superseded', 'deprecated'].includes(node.status)) related_decisions.push(node);
+        break;
+      case 'knowledge':
+        if (node.status !== 'outdated') related_knowledge.push(node);
+        break;
       case 'risk': related_risks.push(node); break;
       case 'tech_debt': related_tech_debt.push(node); break;
     }

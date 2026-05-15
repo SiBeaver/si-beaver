@@ -11,7 +11,7 @@ import {
   defineGoal, decomposeGoal, updateGoalStatus,
   beginExploration, recordExplorationFinding, concludeExploration, abandonExploration,
   recordDecision,
-  createTask, updateTaskStatus,
+  createTask, updateTaskStatus, backfillTask,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
   linkNodes, getProjectState, getNodeContext, getTaskContext,
@@ -19,6 +19,7 @@ import {
   staleItems, currentBlockers, recentActivity, fullTextSearch,
 } from '../operations/index.js';
 import { ProjectManager } from '../projects/index.js';
+import { startEmbedSync, getEmbedSyncStats } from '../jobs/embed-sync.js';
 import { snakeToCamel, camelToSnake, kebabToSnake } from './transforms.js';
 
 // ============================================================
@@ -30,10 +31,23 @@ const manager = new ProjectManager();
 const app = new Hono();
 
 app.use('/api/*', cors());
+app.use('/api/*', async (c, next) => {
+  const start = Date.now();
+  await next();
+  console.log(`[API] ${c.req.method} ${c.req.path} ${c.res.status} ${Date.now() - start}ms`);
+});
 /** 统一响应：将 snake_case 转为 camelCase */
 function json(c: any, data: unknown, status?: number) {
   return c.json(snakeToCamel(data), status);
 }
+
+// ============================================================
+// 监控路由
+// ============================================================
+
+app.get('/api/v1/stats/embedding', (c) => {
+  return c.json(getEmbedSyncStats());
+});
 
 // ============================================================
 // 项目管理路由
@@ -215,6 +229,7 @@ const operationHandlers: Record<string, (ctx: OperationContext, input: any) => P
   record_decision: recordDecision,
   create_task: createTask,
   update_task_status: updateTaskStatus,
+  backfill_task: backfillTask,
   identify_risk: identifyRisk,
   update_risk: updateRisk,
   register_tech_debt: registerTechDebt,
@@ -372,6 +387,7 @@ const PORT = Number(process.env.SI_BEAVER_PORT) || 7420;
 
 async function start() {
   await manager.init();
+  startEmbedSync(manager);
 
   const honoListener = getRequestListener(app.fetch);
 
@@ -400,6 +416,10 @@ async function start() {
     // Everything else → Hono (REST API + static files)
     honoListener(req, res);
   });
+
+  // Disable idle timeout so long-lived MCP sessions aren't dropped
+  httpServer.timeout = 0;
+  httpServer.keepAliveTimeout = 120_000;
 
   httpServer.listen(PORT, () => {
     console.log(`si-beaver running at http://localhost:${PORT} (REST + MCP unified)`);

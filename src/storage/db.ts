@@ -84,6 +84,12 @@ CREATE INDEX IF NOT EXISTS idx_edges_source_relation ON edges(project_id, source
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(project_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_type ON events(project_id, event_type);
 CREATE INDEX IF NOT EXISTS idx_events_node_id ON events(project_id, node_id);
+
+-- pgvector for semantic search
+CREATE EXTENSION IF NOT EXISTS vector;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS embedding vector(1024);
+CREATE INDEX IF NOT EXISTS idx_nodes_embedding
+  ON nodes USING hnsw (embedding vector_cosine_ops);
 `;
 
 let _sql: postgres.Sql | null = null;

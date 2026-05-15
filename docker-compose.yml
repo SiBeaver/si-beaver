@@ -8,3 +8,6 @@ services:
     environment:
       - SI_BEAVER_PORT=7420
       - DATABASE_URL=postgres://sibeaver:sibeaver@10.1.1.40:5432/sibeaver
+      - EMBEDDING_API_URL=https://api.siliconflow.cn/v1/embeddings
+      - EMBEDDING_API_KEY=sk-ahcoijskaskgaamxzyzpzdovhimcxyrwqkubjirlnydkchod
+      - EMBEDDING_MODEL=BAAI/bge-m3

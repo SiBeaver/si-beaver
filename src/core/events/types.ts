@@ -30,6 +30,7 @@ export const EventType = z.enum([
   // Task
   'task.created',
   'task.status_changed',
+  'task.backfilled',
   // Graph
   'graph.edge_created',
   'graph.edge_removed',
