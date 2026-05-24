@@ -1,31 +1,19 @@
-# ---- Build stage ----
-FROM node:22-alpine AS build
-
-WORKDIR /app
-
-# Install deps
-COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
-
-# Build backend
-COPY tsup.config.ts tsconfig.json ./
-COPY src/ src/
-RUN npx tsup
-
-# ---- Runtime stage ----
 FROM node:22-alpine
 
+RUN apk add --no-cache python3 make g++
+
 WORKDIR /app
 
-# Only production deps (no native modules needed)
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts
+RUN npm config set registry https://registry.npmmirror.com && npm ci --omit=dev
 
-COPY --from=build /app/dist/ dist/
+COPY dev-hot-entrypoint.sh /dev-hot-entrypoint.sh
+RUN chmod +x /dev-hot-entrypoint.sh
 
+ENV SI_BEAVER_HOME=/data
 ENV SI_BEAVER_PORT=7420
 ENV NODE_ENV=production
 
 EXPOSE 7420
 
-CMD ["node", "dist/api/server.js"]
+ENTRYPOINT ["/dev-hot-entrypoint.sh"]
