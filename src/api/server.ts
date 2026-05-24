@@ -34,6 +34,8 @@ const app = new Hono();
 
 const AUTH_TOKEN = process.env.SI_BEAVER_AUTH_TOKEN;
 
+app.get('/healthz', (c) => c.json({ status: 'ok' }));
+
 app.use('/api/*', cors());
 
 if (AUTH_TOKEN) {
