@@ -14,10 +14,12 @@ import {
   createTask, updateTaskStatus, backfillTask,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
-  linkNodes, getProjectState, getNodeContext, getTaskContext,
+  linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext,
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
+  batchOperations,
 } from '../operations/index.js';
+import type { BatchOperationsInput } from '../operations/batch.js';
 import { ProjectManager } from '../projects/index.js';
 import { startEmbedSync, getEmbedSyncStats } from '../jobs/embed-sync.js';
 import { snakeToCamel, camelToSnake, kebabToSnake } from './transforms.js';
@@ -235,6 +237,7 @@ const operationHandlers: Record<string, (ctx: OperationContext, input: any) => P
   register_tech_debt: registerTechDebt,
   record_knowledge: recordKnowledge,
   link_nodes: linkNodes,
+  delete_node: deleteNode,
 };
 
 app.post('/api/v1/projects/:slug/operations/:name', async (c) => {
@@ -251,6 +254,19 @@ app.post('/api/v1/projects/:slug/operations/:name', async (c) => {
     const input = await c.req.json();
     const snakeInput = camelToSnake(input);
     const result = await handler(ctx, snakeInput);
+    return json(c, result);
+  } catch (e: any) {
+    return json(c, { error: e.message }, 400);
+  }
+});
+
+app.post('/api/v1/projects/:slug/batch', async (c) => {
+  const slug = c.req.param('slug');
+  try {
+    const ctx = getCtx(slug);
+    const input = await c.req.json();
+    const snakeInput = camelToSnake(input) as BatchOperationsInput;
+    const result = await batchOperations(ctx, snakeInput, operationHandlers);
     return json(c, result);
   } catch (e: any) {
     return json(c, { error: e.message }, 400);
@@ -360,6 +376,17 @@ app.post('/api/v1/operations/:name', async (c) => {
     const input = await c.req.json();
     const snakeInput = camelToSnake(input);
     const result = await handler(await defaultCtx(), snakeInput);
+    return json(c, result);
+  } catch (e: any) {
+    return json(c, { error: e.message }, 400);
+  }
+});
+
+app.post('/api/v1/batch', async (c) => {
+  try {
+    const input = await c.req.json();
+    const snakeInput = camelToSnake(input) as BatchOperationsInput;
+    const result = await batchOperations(await defaultCtx(), snakeInput, operationHandlers);
     return json(c, result);
   } catch (e: any) {
     return json(c, { error: e.message }, 400);

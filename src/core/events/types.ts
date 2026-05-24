@@ -34,6 +34,7 @@ export const EventType = z.enum([
   // Graph
   'graph.edge_created',
   'graph.edge_removed',
+  'graph.node_deleted',
   // Artifact
   'artifact.created',
 ]);

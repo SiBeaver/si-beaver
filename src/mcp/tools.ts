@@ -15,9 +15,10 @@ import {
   createTask, updateTaskStatus, backfillTask,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
-  linkNodes, getProjectState, getNodeContext, getTaskContext,
+  linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext,
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
+  batchOperations,
 } from '../operations/index.js';
 import type { OperationContext } from '../operations/context.js';
 import type { ProjectManager } from '../projects/index.js';
@@ -81,6 +82,27 @@ export function registerTools(server: McpServer, opts: RegisterToolsOptions): vo
 // ============================================================
 // Scoped mode — tools bound to a single project
 // ============================================================
+
+/** Shared operation handler map for batch_operations */
+const operationHandlers: Record<string, (ctx: OperationContext, input: any) => Promise<any>> = {
+  define_goal: defineGoal,
+  decompose_goal: decomposeGoal,
+  update_goal_status: updateGoalStatus,
+  begin_exploration: beginExploration,
+  record_exploration_finding: recordExplorationFinding,
+  conclude_exploration: concludeExploration,
+  abandon_exploration: abandonExploration,
+  record_decision: recordDecision,
+  create_task: createTask,
+  update_task_status: updateTaskStatus,
+  backfill_task: backfillTask,
+  identify_risk: identifyRisk,
+  update_risk: updateRisk,
+  register_tech_debt: registerTechDebt,
+  record_knowledge: recordKnowledge,
+  link_nodes: linkNodes,
+  delete_node: deleteNode,
+};
 
 function registerScopedTools(server: McpServer, getCtx: () => OperationContext, slug: string): void {
   const log = (name: string, handler: (args: any) => Promise<any>) => logged(slug, name, handler);
@@ -316,6 +338,23 @@ function registerScopedTools(server: McpServer, getCtx: () => OperationContext, 
     annotation: z.string().optional().describe('关系说明'),
   }, log('link_nodes', async (args) => {
     return jsonResult(await linkNodes(getCtx(), args));
+  }));
+
+  server.tool('delete_node', '删除节点及其所有关联边（用于清理重复或废弃节点）', {
+    node_id: z.string().describe('要删除的节点 ID'),
+    reason: z.string().optional().describe('删除原因'),
+  }, log('delete_node', async (args) => {
+    return jsonResult(await deleteNode(getCtx(), args));
+  }));
+
+  // --- 批量操作 ---
+  server.tool('batch_operations', '批量执行多个操作（一次调用完成多项更新，部分失败不中断）', {
+    operations: z.array(z.object({
+      op: z.string().describe('操作名称，如 backfill_task、conclude_exploration、delete_node 等'),
+      params: z.record(z.unknown()).describe('该操作的参数'),
+    })).describe('要执行的操作列表，最多 50 个'),
+  }, log('batch_operations', async (args) => {
+    return jsonResult(await batchOperations(getCtx(), args, operationHandlers));
   }));
 
   // --- 读操作 ---
@@ -663,6 +702,25 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     annotation: z.string().optional(),
   }, log('link_nodes', async ({ project, ...args }) => {
     return jsonResult(await linkNodes(await ctx(project), args));
+  }));
+
+  server.tool('delete_node', '删除节点及其所有关联边', {
+    project: projectParam,
+    node_id: z.string().describe('要删除的节点 ID'),
+    reason: z.string().optional().describe('删除原因'),
+  }, log('delete_node', async ({ project, ...args }) => {
+    return jsonResult(await deleteNode(await ctx(project), args));
+  }));
+
+  // --- 批量操作 ---
+  server.tool('batch_operations', '批量执行多个操作（一次调用完成多项更新）', {
+    project: projectParam,
+    operations: z.array(z.object({
+      op: z.string().describe('操作名称'),
+      params: z.record(z.unknown()).describe('该操作的参数'),
+    })).describe('要执行的操作列表，最多 50 个'),
+  }, log('batch_operations', async ({ project, ...args }) => {
+    return jsonResult(await batchOperations(await ctx(project), args, operationHandlers));
   }));
 
   // --- 读操作 ---

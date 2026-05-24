@@ -57,6 +57,41 @@ export async function linkNodes(ctx: OperationContext, input: LinkNodesInput) {
 }
 
 // ============================================================
+// delete_node — 删除节点及其关联边
+// ============================================================
+
+export interface DeleteNodeInput {
+  node_id: string;
+  reason?: string;
+}
+
+export async function deleteNode(ctx: OperationContext, input: DeleteNodeInput) {
+  const node = await ctx.nodes.getById(input.node_id);
+  if (!node) throw new Error(`Node not found: ${input.node_id}`);
+
+  // 删除所有关联边
+  const edges = await ctx.edges.getByNode(input.node_id);
+  for (const edge of edges) {
+    await ctx.edges.delete(edge.id);
+  }
+
+  // 删除节点
+  await ctx.nodes.delete(input.node_id);
+
+  // 记录事件
+  const event = await ctx.events.emit({
+    event_type: 'graph.node_deleted',
+    operation: 'delete_node',
+    node_id: input.node_id,
+    node_type: node.type,
+    payload: { title: node.title, type: node.type, edges_removed: edges.length },
+    context: input.reason ?? null,
+  });
+
+  return { deleted_node: { id: node.id, type: node.type, title: node.title }, edges_removed: edges.length, event };
+}
+
+// ============================================================
 // get_project_state — 获取项目状态
 // ============================================================
 
