@@ -29,6 +29,7 @@ async function createServerForSlug(manager: ProjectManager, slug: string): Promi
     mode: 'scoped',
     slug,
     getContext: () => manager.getContext(slug),
+    getMetadata: () => project.metadata,
   });
 
   return server;

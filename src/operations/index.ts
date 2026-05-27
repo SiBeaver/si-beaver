@@ -11,3 +11,4 @@ export {
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
 } from './queries.js';
+export { generateProjection, listProjectionTypes } from './projections.js';

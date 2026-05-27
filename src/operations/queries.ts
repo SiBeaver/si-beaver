@@ -11,7 +11,7 @@ export interface GetRoadmapInput {
   max_depth?: number;
 }
 
-interface RoadmapItem {
+export interface RoadmapItem {
   node: CognitiveNode;
   children: RoadmapItem[];
   progress: { total: number; done: number };

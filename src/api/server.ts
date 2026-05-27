@@ -18,6 +18,7 @@ import {
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
   batchOperations,
+  generateProjection, listProjectionTypes,
 } from '../operations/index.js';
 import type { BatchOperationsInput } from '../operations/batch.js';
 import { ProjectManager } from '../projects/index.js';
@@ -218,6 +219,39 @@ app.get('/api/v1/projects/:slug/blockers', async (c) => {
   return json(c, await currentBlockers(getCtx(slug)));
 });
 
+app.get('/api/v1/projects/:slug/projections', async (c) => {
+  const slug = c.req.param('slug');
+  const project = await manager.getProject(slug);
+  if (!project) return json(c, { error: 'Project not found' }, 404);
+  const types = await listProjectionTypes();
+  const configured = (project.metadata?.projections ?? {}) as Record<string, any>;
+  return json(c, {
+    available_types: types,
+    configured: Object.entries(configured).map(([key, cfg]: [string, any]) => ({
+      ...cfg,
+      id: key,
+    })),
+  });
+});
+
+app.post('/api/v1/projects/:slug/projections/:type/generate', async (c) => {
+  const slug = c.req.param('slug');
+  const type = c.req.param('type');
+  const project = await manager.getProject(slug);
+  if (!project) return json(c, { error: 'Project not found' }, 404);
+  const projections = (project.metadata?.projections ?? {}) as Record<string, any>;
+  const config = projections[type];
+  if (!config) {
+    return json(c, { error: `No projection config for type "${type}"` }, 400);
+  }
+  try {
+    const result = await generateProjection(getCtx(slug), { type, config });
+    return json(c, result);
+  } catch (e: any) {
+    return json(c, { error: e.message }, 400);
+  }
+});
+
 app.get('/api/v1/projects/:slug/activity', async (c) => {
   const slug = c.req.param('slug');
   const limit = c.req.query('limit');
@@ -253,6 +287,8 @@ const operationHandlers: Record<string, (ctx: OperationContext, input: any) => P
   record_knowledge: recordKnowledge,
   link_nodes: linkNodes,
   delete_node: deleteNode,
+  generate_projection: generateProjection,
+  list_projections: listProjectionTypes,
 };
 
 app.post('/api/v1/projects/:slug/operations/:name', async (c) => {

@@ -75,6 +75,14 @@ export class Registry {
 }
 
 function rowToMeta(row: any): ProjectMeta {
+  let parsed: Record<string, unknown> = {};
+  if (row.metadata) {
+    try {
+      parsed = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+    } catch {
+      parsed = {};
+    }
+  }
   return {
     slug: row.slug,
     name: row.name,
@@ -82,6 +90,6 @@ function rowToMeta(row: any): ProjectMeta {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archived: row.archived,
-    metadata: row.metadata ?? {},
+    metadata: parsed,
   };
 }
