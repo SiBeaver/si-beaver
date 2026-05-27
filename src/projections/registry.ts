@@ -1,6 +1,7 @@
 import type { ProjectionTemplate } from './types.js';
 import { adrProjection } from './engines/adr.js';
 import { roadmapProjection } from './engines/roadmap.js';
+import { explorationProjection } from './engines/exploration.js';
 
 const registry = new Map<string, ProjectionTemplate>();
 
@@ -19,3 +20,4 @@ export function listProjections(): ProjectionTemplate[] {
 // Register built-in projection types
 registerProjection(adrProjection);
 registerProjection(roadmapProjection);
+registerProjection(explorationProjection);
