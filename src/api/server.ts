@@ -34,20 +34,22 @@ const manager = new ProjectManager();
 const app = new Hono();
 
 const AUTH_TOKEN = process.env.SI_BEAVER_AUTH_TOKEN;
+if (!AUTH_TOKEN) {
+  console.error('FATAL: SI_BEAVER_AUTH_TOKEN environment variable is required');
+  process.exit(1);
+}
 
 app.get('/healthz', (c) => c.json({ status: 'ok' }));
 
 app.use('/api/*', cors());
 
-if (AUTH_TOKEN) {
-  app.use('/api/*', async (c, next) => {
-    const auth = c.req.header('Authorization');
-    if (auth !== `Bearer ${AUTH_TOKEN}`) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-    await next();
-  });
-}
+app.use('/api/*', async (c, next) => {
+  const auth = c.req.header('Authorization');
+  if (auth !== `Bearer ${AUTH_TOKEN}`) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  await next();
+});
 
 app.use('/api/*', async (c, next) => {
   const start = Date.now();
@@ -488,13 +490,11 @@ async function start() {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', '*');
 
-      if (AUTH_TOKEN) {
-        const auth = req.headers['authorization'];
-        if (auth !== `Bearer ${AUTH_TOKEN}`) {
-          res.writeHead(401, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Unauthorized' }));
-          return;
-        }
+      const auth = req.headers['authorization'];
+      if (auth !== `Bearer ${AUTH_TOKEN}`) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+        return;
       }
 
       const handled = await handleMcpRequest(req, res, manager);
@@ -513,7 +513,7 @@ async function start() {
     console.log(`si-beaver running at http://localhost:${PORT} (REST + MCP unified)`);
     console.log(`  REST API: http://localhost:${PORT}/api/v1/...`);
     console.log(`  MCP:      http://localhost:${PORT}/mcp/{slug}`);
-    console.log(`  Auth:     ${AUTH_TOKEN ? 'Bearer token ENABLED' : 'DISABLED (internal mode)'}`);
+    console.log(`  Auth:     Bearer token ENABLED`);
   });
 }
 
