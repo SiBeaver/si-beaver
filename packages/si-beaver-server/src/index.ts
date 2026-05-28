@@ -7,3 +7,8 @@ export * from './projections/index.js';
 export * from './embedding/index.js';
 export { ProjectManager } from './projects/manager.js';
 export type { ProjectMeta, CreateProjectInput, UpdateProjectInput } from './projects/types.js';
+
+// 供 si-beaver-cloud 直接集成
+export { createSiBeaverApp, operationHandlers, type SiBeaverApp } from './api/server.js';
+export { handleMcpRequest } from './mcp/http-server.js';
+export { startEmbedSync, getEmbedSyncStats } from './jobs/embed-sync.js';
