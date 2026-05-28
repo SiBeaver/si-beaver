@@ -1,0 +1,14 @@
+services:
+  si-beaver:
+    build: .
+    container_name: si-beaver
+    restart: unless-stopped
+    ports:
+      - "7420:7420"
+    environment:
+      - SI_BEAVER_PORT=7420
+      - DATABASE_URL=postgres://sibeaver:sibeaver@10.1.1.40:5432/sibeaver
+      - EMBEDDING_API_URL=https://api.siliconflow.cn/v1/embeddings
+      - EMBEDDING_API_KEY=sk-ahcoijskaskgaamxzyzpzdovhimcxyrwqkubjirlnydkchod
+      - EMBEDDING_MODEL=BAAI/bge-m3
+      - SI_BEAVER_AUTH_TOKEN=dd819aedda9cbf54b8053c5178f4e53cf0ffbe3f9c851cc72ea1faac5b07b6ac

@@ -1,0 +1,124 @@
+import { ulid } from 'ulidx';
+import type { OperationContext } from './context.js';
+import type { Edge } from '@si-beaver/core';
+import type { RequirementNode } from '@si-beaver/core';
+import { isValidTransition, REQUIREMENT_TRANSITIONS } from '@si-beaver/core';
+
+// ============================================================
+// define_requirement — 定义需求
+// ============================================================
+
+export interface DefineRequirementInput {
+  title: string;
+  description?: string;
+  priority?: 'critical' | 'high' | 'medium' | 'low';
+  source: string;
+  source_detail?: string;
+  acceptance_criteria?: string[];
+  parent_goal?: string;
+  tags?: string[];
+}
+
+export async function defineRequirement(ctx: OperationContext, input: DefineRequirementInput) {
+  const now = new Date().toISOString();
+  const requirement: RequirementNode = {
+    id: ulid(),
+    type: 'requirement',
+    title: input.title,
+    description: input.description ?? '',
+    status: 'proposed',
+    tags: input.tags ?? [],
+    created_at: now,
+    updated_at: now,
+    metadata: {},
+    priority: input.priority ?? 'medium',
+    source: input.source,
+    source_detail: input.source_detail ?? null,
+    acceptance_criteria: input.acceptance_criteria ?? [],
+  };
+
+  await ctx.nodes.insert(requirement);
+  const edges_created: Edge[] = [];
+
+  if (input.parent_goal) {
+    const goal = await ctx.nodes.getById(input.parent_goal);
+    if (!goal || goal.type !== 'goal') {
+      throw new Error(`Parent goal not found: ${input.parent_goal}`);
+    }
+    const edge: Edge = {
+      id: ulid(), source_id: requirement.id, target_id: input.parent_goal,
+      relation: 'informs', weight: null, annotation: null, created_at: now,
+    };
+    await ctx.edges.insert(edge);
+    edges_created.push(edge);
+  }
+
+  const event = await ctx.events.emit({
+    event_type: 'requirement.defined',
+    operation: 'define_requirement',
+    node_id: requirement.id,
+    node_type: 'requirement',
+    payload: { title: input.title, priority: requirement.priority, source: input.source },
+  });
+
+  return { requirement, edges_created, event };
+}
+
+// ============================================================
+// update_requirement_status — 更新需求状态
+// ============================================================
+
+export interface UpdateRequirementStatusInput {
+  requirement_id: string;
+  new_status: 'proposed' | 'accepted' | 'in_execution' | 'revision_needed' | 'satisfied' | 'deprecated';
+  reason: string;
+  revision_suggestion?: string;
+}
+
+export async function updateRequirementStatus(ctx: OperationContext, input: UpdateRequirementStatusInput) {
+  const node = await ctx.nodes.getById(input.requirement_id);
+  if (!node || node.type !== 'requirement') {
+    throw new Error(`Requirement not found: ${input.requirement_id}`);
+  }
+
+  const requirement = node as RequirementNode;
+  const oldStatus = requirement.status;
+
+  if (input.new_status === 'deprecated') {
+    // deprecated can be reached from any non-terminal state
+    if (oldStatus === 'satisfied' || oldStatus === 'deprecated') {
+      throw new Error(`Invalid transition: ${oldStatus} → ${input.new_status}`);
+    }
+  } else {
+    if (!isValidTransition(REQUIREMENT_TRANSITIONS, oldStatus, input.new_status)) {
+      throw new Error(`Invalid transition: ${oldStatus} → ${input.new_status}`);
+    }
+  }
+
+  const now = new Date().toISOString();
+  const updated: RequirementNode = {
+    ...requirement,
+    status: input.new_status,
+    updated_at: now,
+  };
+  await ctx.nodes.update(updated);
+
+  const eventType = input.new_status === 'revision_needed'
+    ? 'requirement.revision_suggested' as const
+    : 'requirement.status_changed' as const;
+
+  const event = await ctx.events.emit({
+    event_type: eventType,
+    operation: 'update_requirement_status',
+    node_id: input.requirement_id,
+    node_type: 'requirement',
+    payload: {
+      reason: input.reason,
+      revision_suggestion: input.revision_suggestion ?? null,
+    },
+    diff: [{ field: 'status', old_value: oldStatus, new_value: input.new_status }],
+    context: input.reason,
+  });
+
+  return { requirement: updated, event };
+}

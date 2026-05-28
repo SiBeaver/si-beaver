@@ -1,0 +1,52 @@
+{
+  "name": "@si-beaver/server",
+  "version": "27.0.0",
+  "description": "AI-native cognitive engine runtime — REST API, MCP, CLI",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "si-beaver": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsx watch src/api/server.ts",
+    "build": "tsup",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "start": "tsx src/api/server.ts"
+  },
+  "keywords": [
+    "ai-native",
+    "project-management",
+    "cognitive-graph",
+    "mcp"
+  ],
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.1",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@si-beaver/core": "workspace:*",
+    "hono": "^4.7.10",
+    "postgres": "^3.4.9",
+    "ulidx": "^2.4.1",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.17",
+    "better-sqlite3": "^12.9.0",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.3"
+  }
+}

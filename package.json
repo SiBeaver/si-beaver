@@ -1,0 +1,19 @@
+{
+  "name": "si-beaver-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AI-native cognitive engine monorepo",
+  "scripts": {
+    "build": "pnpm -r build",
+    "build:core": "pnpm --filter @si-beaver/core build",
+    "build:server": "pnpm --filter @si-beaver/server build",
+    "build:web": "pnpm --filter @si-beaver/web build",
+    "test": "pnpm -r test",
+    "dev": "pnpm --filter @si-beaver/server dev",
+    "dev:web": "pnpm --filter @si-beaver/web dev",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
