@@ -165,7 +165,7 @@ export function HowtoView({ slug: _slug }: Props) {
       <Typography.Title level={5} style={{ marginTop: 32, marginBottom: 16 }}>MCP 工具分类</Typography.Title>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         通过 MCP 连接 sibeaver 后，以下 ~30 个工具可直接在 AI 对话中使用。
-        端点: <Typography.Text code>http://sibs.realhyx.local/mcp/{'{project-slug}'}</Typography.Text>
+        端点: <Typography.Text code>{window.location.origin}/mcp/{'{project-slug}'}</Typography.Text>
       </Typography.Paragraph>
 
       {MCP_GROUPS.map(g => (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createElement } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout, Menu, Typography, Button, theme } from 'antd';
 import {
@@ -20,29 +20,42 @@ import { TasksView } from '../components/tasks/TasksView';
 import { RequirementsView } from '../components/requirements/RequirementsView';
 import { HowtoView } from '../components/howto/HowtoView';
 import { clearToken } from '../lib/auth';
-import type { Tab, LegacyTab } from '../lib/constants';
 import { LEGACY_TO_NEW } from '../lib/constants';
+import type { LegacyTab } from '../lib/constants';
+import { getPlugins } from '../plugin/registry';
+import type { TabPlugin } from '../plugin/types';
 
 const { Sider, Content } = Layout;
 
-const TAB_TITLES: Record<Tab, string> = {
-  what: '是什么',
-  design: '设计',
-  goals: '目标',
-  tasks: '任务',
-  requirements: '需求',
-  howto: '怎么用',
-};
+const BASE_TABS: (TabPlugin & { builtin: true })[] = [
+  { key: 'what', label: '是什么', icon: InfoCircleOutlined, component: WhatView, builtin: true },
+  { key: 'design', label: '设计', icon: BuildOutlined, component: DesignView, builtin: true },
+  { key: 'goals', label: '目标', icon: FlagOutlined, component: GoalsView, builtin: true },
+  { key: 'tasks', label: '任务', icon: UnorderedListOutlined, component: TasksView, builtin: true },
+  { key: 'requirements', label: '需求', icon: FileTextOutlined, component: RequirementsView, builtin: true },
+  { key: 'howto', label: '怎么用', icon: QuestionCircleOutlined, component: HowtoView, builtin: true },
+];
+
+function getAllTabs(): TabPlugin[] {
+  const plugins = getPlugins();
+  const pluginKeys = new Set(plugins.map(p => p.key));
+  // base tabs first, then plugins, skip plugins that override base keys
+  const baseFiltered = BASE_TABS.filter(t => !pluginKeys.has(t.key));
+  return [...baseFiltered, ...plugins];
+}
 
 export function ProjectDetailPage() {
   const { slug, tab } = useParams<{ slug: string; tab: string }>();
-  const activeTab = (tab as Tab) || 'what';
+  const allTabs = getAllTabs();
+  const activeTab = tab || 'what';
   const navigate = useNavigate();
   const { mutate } = useSWRConfig();
   const [spinning, setSpinning] = useState(false);
   const { token } = theme.useToken();
 
-  // redirect legacy tab URLs
+  const tabMap = new Map(allTabs.map(t => [t.key, t]));
+  const activePlugin = tabMap.get(activeTab);
+
   useEffect(() => {
     const legacy = LEGACY_TO_NEW[tab as LegacyTab];
     if (legacy) {
@@ -97,14 +110,11 @@ export function ProjectDetailPage() {
           selectedKeys={[activeTab]}
           onSelect={({ key }) => navigate(`/projects/${slug}/${key}`)}
           style={{ border: 'none', background: 'transparent' }}
-          items={[
-            { key: 'what', icon: <InfoCircleOutlined style={{ fontSize: 18 }} />, label: '是什么' },
-            { key: 'design', icon: <BuildOutlined style={{ fontSize: 18 }} />, label: '设计' },
-            { key: 'goals', icon: <FlagOutlined style={{ fontSize: 18 }} />, label: '目标' },
-            { key: 'tasks', icon: <UnorderedListOutlined style={{ fontSize: 18 }} />, label: '任务' },
-            { key: 'requirements', icon: <FileTextOutlined style={{ fontSize: 18 }} />, label: '需求' },
-            { key: 'howto', icon: <QuestionCircleOutlined style={{ fontSize: 18 }} />, label: '怎么用' },
-          ]}
+          items={allTabs.map(t => ({
+            key: t.key,
+            icon: createElement(t.icon as any, { style: { fontSize: 18 } }),
+            label: t.label,
+          }))}
         />
         <div style={{ flex: 1 }} />
         <div
@@ -133,7 +143,7 @@ export function ProjectDetailPage() {
           justifyContent: 'space-between',
         }}>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            {TAB_TITLES[activeTab] ?? activeTab}
+            {activePlugin?.label ?? activeTab}
           </Typography.Title>
           <Button
             type="text"
@@ -143,12 +153,7 @@ export function ProjectDetailPage() {
           />
         </div>
         <Content style={{ padding: 32, overflow: 'auto' }}>
-          {activeTab === 'what' && <WhatView slug={slug!} />}
-          {activeTab === 'design' && <DesignView slug={slug!} />}
-          {activeTab === 'goals' && <GoalsView slug={slug!} />}
-          {activeTab === 'tasks' && <TasksView slug={slug!} />}
-          {activeTab === 'requirements' && <RequirementsView slug={slug!} />}
-          {activeTab === 'howto' && <HowtoView slug={slug!} />}
+          {activePlugin && <activePlugin.component slug={slug!} />}
         </Content>
       </Layout>
     </Layout>

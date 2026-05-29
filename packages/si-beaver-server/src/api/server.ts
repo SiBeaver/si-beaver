@@ -525,6 +525,21 @@ async function start() {
     console.log(`  MCP:      http://localhost:${PORT}/mcp/{slug}`);
     console.log(`  Auth:     Bearer token ENABLED`);
   });
+
+  // Graceful shutdown
+  const shutdown = (signal: string) => {
+    console.log(`[server] Received ${signal}, shutting down...`);
+    httpServer.close(() => {
+      console.log('[server] HTTP server closed');
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.error('[server] Forced shutdown after timeout');
+      process.exit(1);
+    }, 15000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 function isMainModule(): boolean {
