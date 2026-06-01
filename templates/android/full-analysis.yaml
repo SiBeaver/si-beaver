@@ -1,0 +1,127 @@
+apiVersion: secflow/v1
+kind: Workflow
+
+metadata:
+  name: android-full-analysis
+  description: End-to-end Android APK security analysis — decompile, static scan, install, runtime hook, report.
+  author: sibat
+  tags: [android, full-workflow, static, dynamic]
+
+params:
+  - name: apk_path
+    description: Absolute path to the target APK file.
+    required: true
+  - name: device_id
+    description: ADB device serial for dynamic analysis. Skip dynamic phase if empty.
+    required: false
+    default: ""
+  - name: frida_script
+    description: Path to Frida JS hook script.
+    required: false
+    default: ""
+
+tasks:
+  # ── Decompile (parallel with extract-metadata) ──
+  decompile:
+    tool: jadx
+    description: Decompile APK to Java source tree.
+    inputs:
+      apk: "${{ params.apk_path }}"
+      output_dir: "${{ params.apk_path }}.jadx"
+    timeout: 300s
+    retry: 1
+
+  extract-metadata:
+    tool: aapt
+    description: Extract package name, permissions, and components from APK manifest.
+    inputs:
+      apk: "${{ params.apk_path }}"
+    timeout: 30s
+    outputs:
+      package_name: 'extract(stdout, "package: name=''([^'']+)''")'
+      target_sdk: "extract(stdout, \"targetSdkVersion:'(\\d+)'\")"
+
+  # ── Static analysis (runs after decompile) ──
+  scan-secrets:
+    tool: secret-scanner
+    description: Scan decompiled sources for hardcoded secrets.
+    depends: decompile
+    inputs:
+      source_dir: "${{ tasks.decompile.outputs.source_dir }}"
+    timeout: 120s
+
+  scan-manifest:
+    tool: manifest-analyzer
+    description: Check manifest for exported components, debuggable flag, backup settings.
+    depends: decompile
+    inputs:
+      manifest_path: "${{ tasks.decompile.outputs.source_dir }}/AndroidManifest.xml"
+    timeout: 30s
+
+  # ── Dynamic analysis (conditional: only if device is connected) ──
+  install:
+    tool: adb
+    description: Install APK on target device.
+    depends: [scan-secrets, scan-manifest]
+    when: "${{ params.device_id != '' }}"
+    inputs:
+      action: install
+      device: "${{ params.device_id }}"
+      apk: "${{ params.apk_path }}"
+    timeout: 60s
+
+  capture-logcat:
+    tool: adb
+    description: Start logcat capture for the target package.
+    depends: install
+    when: "${{ params.device_id != '' }}"
+    inputs:
+      action: logcat
+      device: "${{ params.device_id }}"
+      filter: "${{ tasks.extract-metadata.outputs.package_name }}"
+    timeout: 0s
+    outputs:
+      logcat_pid: "extract(stdout, \"pid=(\\d+)\")"
+
+  hook:
+    tool: frida
+    description: Inject Frida script into running app process.
+    depends: [install, capture-logcat?]
+    when: "${{ params.frida_script != '' }}"
+    inputs:
+      device: "${{ params.device_id }}"
+      package: "${{ tasks.extract-metadata.outputs.package_name }}"
+      script: "${{ params.frida_script }}"
+    timeout: 120s
+
+  stop-logcat:
+    tool: adb
+    description: Stop logcat capture.
+    depends:
+      - capture-logcat.Succeeded
+      - hook?
+    inputs:
+      action: kill
+      pid: "${{ tasks.capture-logcat.outputs.logcat_pid }}"
+    timeout: 10s
+
+  # ── Report generation ──
+  generate-report:
+    tool: report-generator
+    description: Aggregate all findings into a structured report.
+    depends:
+      - scan-secrets
+      - scan-manifest
+      - hook?
+      - capture-logcat?
+      - stop-logcat?
+    inputs:
+      template: android-report
+      findings:
+        secrets: "${{ tasks.scan-secrets.outputs.findings }}"
+        manifest: "${{ tasks.scan-manifest.outputs.issues }}"
+        frida: "${{ tasks.hook.outputs.data || 'null' }}"
+      metadata:
+        apk: "${{ params.apk_path }}"
+        package: "${{ tasks.extract-metadata.outputs.package_name }}"
+    timeout: 30s

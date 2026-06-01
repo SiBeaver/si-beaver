@@ -1,8 +1,9 @@
 {
   "name": "@si-beaver/web",
-  "version": "27.0.0",
+  "version": "0.2.0",
   "private": true,
   "description": "AI-native cognitive engine dashboard",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     "./plugin": "./src/plugin/index.ts",

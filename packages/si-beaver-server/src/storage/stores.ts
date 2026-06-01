@@ -1,7 +1,7 @@
 import type { Sql } from './db.js';
-import type { CognitiveNode, NodeType } from '@si-beaver/core';
-import type { Edge } from '@si-beaver/core';
-import type { EventRecord } from '@si-beaver/core';
+import type { CognitiveNode, NodeType } from '../nodes/types.js';
+import type { Edge } from '../edges/types.js';
+import type { EventRecord } from '../events/types.js';
 
 // ============================================================
 // Row ↔ Node 转换

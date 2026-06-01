@@ -1,8 +1,8 @@
 import { ulid } from 'ulidx';
 import type { OperationContext } from './context.js';
-import type { ExplorationNode } from '@si-beaver/core';
-import type { Edge } from '@si-beaver/core';
-import type { EventRecord } from '@si-beaver/core';
+import type { ExplorationNode } from '../nodes/types.js';
+import type { Edge } from '../edges/types.js';
+import type { EventRecord } from '../events/types.js';
 
 // ============================================================
 // begin_exploration — 开始探索

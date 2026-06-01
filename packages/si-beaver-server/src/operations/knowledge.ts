@@ -1,7 +1,7 @@
 import { ulid } from 'ulidx';
 import type { OperationContext } from './context.js';
-import type { Edge } from '@si-beaver/core';
-import type { KnowledgeNode } from '@si-beaver/core';
+import type { Edge } from '../edges/types.js';
+import type { KnowledgeNode } from '../nodes/types.js';
 
 // ============================================================
 // record_knowledge — 记录知识

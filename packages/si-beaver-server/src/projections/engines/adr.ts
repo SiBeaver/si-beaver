@@ -1,5 +1,5 @@
 import type { OperationContext } from '../../operations/context.js';
-import type { DecisionNode } from '@si-beaver/core';
+import type { DecisionNode } from '../../nodes/types.js';
 import type { ProjectionTemplate, GeneratedProjection, ProjectionConfigEntry } from '../types.js';
 
 function slugify(title: string): string {

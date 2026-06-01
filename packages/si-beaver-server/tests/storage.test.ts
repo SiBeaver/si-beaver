@@ -3,7 +3,7 @@ import { createTestSql } from './helpers/test-db.js';
 import { NodeStore, EdgeStore, EventStore } from '../src/storage/stores.js';
 import type { Sql } from '../src/storage/db.js';
 import { ulid } from 'ulidx';
-import type { GoalNode, Edge, EventRecord } from '@si-beaver/core';
+import type { GoalNode, Edge, EventRecord } from '../src/index.js';
 
 const PROJECT_ID = 'default';
 

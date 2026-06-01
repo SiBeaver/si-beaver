@@ -1,0 +1,139 @@
+// ============================================================
+// CamelCase API 响应类型 — 对应内部 snake_case 类型
+//
+// si-beaver REST API 通过 snakeToCamel() 转换所有响应，
+// 因此 API 消费者看到的是 camelCase，而非内部存储的 snake_case。
+// ============================================================
+
+import type { EventType } from './events/types.js';
+import type { RelationType } from './edges/types.js';
+
+// ============================================================
+// 通用枚举（值相同，直接用 core 的）
+// ============================================================
+
+export type { EventType, RelationType };
+
+export type NodeType =
+  | 'goal' | 'task' | 'exploration' | 'decision'
+  | 'risk' | 'tech_debt' | 'artifact' | 'knowledge' | 'requirement';
+
+export type Priority = 'critical' | 'high' | 'medium' | 'low';
+
+export type RequirementStatus =
+  | 'proposed' | 'accepted' | 'in_execution'
+  | 'revision_needed' | 'satisfied' | 'deprecated';
+
+export type TaskStatus =
+  | 'proposed' | 'ready' | 'in_progress' | 'done' | 'cancelled';
+
+// ============================================================
+// 基础节点
+// ============================================================
+
+export interface ApiNode {
+  id: string;
+  type: NodeType;
+  title: string;
+  description: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+  status: string;
+}
+
+export interface ApiGoalNode extends ApiNode {
+  type: 'goal';
+  status: 'active' | 'achieved' | 'abandoned' | 'deferred';
+  horizon: 'short' | 'medium' | 'long';
+  successCriteria: string[];
+  priority: Priority;
+}
+
+export interface ApiTaskNode extends ApiNode {
+  type: 'task';
+  status: TaskStatus;
+  effort: 'trivial' | 'small' | 'medium' | 'large' | 'unknown';
+  priority: Priority;
+  acceptanceCriteria: string[];
+}
+
+export interface ApiRequirementNode extends ApiNode {
+  type: 'requirement';
+  status: RequirementStatus;
+  priority: Priority;
+  source: string;
+  sourceDetail: string | null;
+  acceptanceCriteria: string[];
+}
+
+export interface ApiKnowledgeNode extends ApiNode {
+  type: 'knowledge';
+  status: 'tentative' | 'established' | 'outdated';
+  domain: string;
+  confidence: 'low' | 'medium' | 'high';
+  source: string;
+}
+
+export type ApiCognitiveNode =
+  | ApiGoalNode
+  | ApiTaskNode
+  | ApiRequirementNode
+  | ApiKnowledgeNode
+  | ApiNode;
+
+// ============================================================
+// 边
+// ============================================================
+
+export interface ApiFieldDiff {
+  field: string;
+  oldValue: unknown;
+  newValue: unknown;
+}
+
+export interface ApiEdge {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  relation: RelationType;
+  annotation?: string | null;
+}
+
+// ============================================================
+// 事件
+// ============================================================
+
+export interface ApiEvent {
+  id: string;
+  timestamp: string;
+  eventType: EventType;
+  actor: 'user' | 'system';
+  operation: string;
+  nodeId: string | null;
+  nodeType: string | null;
+  payload: Record<string, unknown>;
+  diff: ApiFieldDiff[] | null;
+  context: string | null;
+}
+
+// ============================================================
+// 复合响应
+// ============================================================
+
+export interface ApiNodeContext {
+  node: ApiCognitiveNode | null;
+  edges: ApiEdge[];
+}
+
+export interface ApiProjectState {
+  goals: ApiNode[];
+  tasks: ApiNode[];
+  requirements: ApiRequirementNode[];
+  explorations: ApiNode[];
+  decisions: ApiNode[];
+  risks: ApiNode[];
+  techDebts: ApiNode[];
+  knowledge: ApiKnowledgeNode[];
+}

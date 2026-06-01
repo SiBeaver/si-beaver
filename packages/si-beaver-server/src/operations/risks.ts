@@ -1,8 +1,8 @@
 import { ulid } from 'ulidx';
 import type { OperationContext } from './context.js';
-import type { Edge } from '@si-beaver/core';
-import { isValidTransition, RISK_TRANSITIONS, TECH_DEBT_TRANSITIONS } from '@si-beaver/core';
-import type { RiskNode, TechDebtNode } from '@si-beaver/core';
+import type { Edge } from '../edges/types.js';
+import { isValidTransition, RISK_TRANSITIONS, TECH_DEBT_TRANSITIONS } from '../lifecycle/machines.js';
+import type { RiskNode, TechDebtNode } from '../nodes/types.js';
 
 // ============================================================
 // identify_risk — 识别风险

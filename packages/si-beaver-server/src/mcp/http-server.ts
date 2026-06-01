@@ -39,13 +39,30 @@ async function createServerForSlug(manager: ProjectManager, slug: string): Promi
 // Session management
 // ============================================================
 
+const SESSION_IDLE_TTL = 30_000; // 30s grace period after transport close before session is deleted
+
 interface SessionEntry {
   transport: StreamableHTTPServerTransport;
   slug: string;
   degraded?: boolean;
+  closeTimer?: ReturnType<typeof setTimeout>;
 }
 
 const sessions = new Map<string, SessionEntry>();
+
+function clearSessionTimer(entry: SessionEntry): void {
+  if (entry.closeTimer) {
+    clearTimeout(entry.closeTimer);
+    entry.closeTimer = undefined;
+  }
+}
+
+function scheduleSessionCleanup(sid: string, entry: SessionEntry): void {
+  entry.closeTimer = setTimeout(() => {
+    console.log(`[MCP] session expired (idle) slug="${entry.slug}" session="${sid}"`);
+    sessions.delete(sid);
+  }, SESSION_IDLE_TTL);
+}
 
 // ============================================================
 // Exported handler
@@ -76,6 +93,7 @@ export async function handleMcpRequest(
 
     if (sessionId && sessions.has(sessionId)) {
       entry = sessions.get(sessionId)!;
+      clearSessionTimer(entry);
     } else if (!sessionId && req.method === 'POST') {
       let server = await createServerForSlug(manager, slug);
       const degraded = !server;
@@ -87,8 +105,8 @@ export async function handleMcpRequest(
       });
       transport.onclose = () => {
         if (transport.sessionId) {
-          console.log(`[MCP] session closed slug="${slug}" session="${transport.sessionId}"`);
-          sessions.delete(transport.sessionId);
+          console.log(`[MCP] session transport closed slug="${slug}" session="${transport.sessionId}"`);
+          scheduleSessionCleanup(transport.sessionId, entry!);
         }
       };
       await server.connect(transport);
@@ -121,6 +139,7 @@ export async function handleMcpRequest(
   if (req.method === 'DELETE') {
     if (sessionId && sessions.has(sessionId)) {
       const entry = sessions.get(sessionId)!;
+      clearSessionTimer(entry);
       await entry.transport.handleRequest(req, res);
       sessions.delete(sessionId);
     } else {

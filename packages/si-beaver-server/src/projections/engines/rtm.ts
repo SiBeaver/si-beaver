@@ -1,6 +1,6 @@
 import type { OperationContext } from '../../operations/context.js';
-import type { RequirementNode } from '@si-beaver/core';
-import type { Edge } from '@si-beaver/core';
+import type { RequirementNode } from '../../nodes/types.js';
+import type { Edge } from '../../edges/types.js';
 import type { ProjectionTemplate, GeneratedProjection, ProjectionConfigEntry } from '../types.js';
 
 const STATUS_ICONS: Record<string, string> = {

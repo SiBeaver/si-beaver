@@ -1,8 +1,8 @@
 import { ulid } from 'ulidx';
 import type { OperationContext } from './context.js';
-import type { Edge } from '@si-beaver/core';
-import { validateRelation, type RelationType } from '@si-beaver/core';
-import type { NodeType } from '@si-beaver/core';
+import type { Edge } from '../edges/types.js';
+import { validateRelation, type RelationType } from '../edges/types.js';
+import type { NodeType } from '../nodes/types.js';
 
 // ============================================================
 // link_nodes — 关联节点

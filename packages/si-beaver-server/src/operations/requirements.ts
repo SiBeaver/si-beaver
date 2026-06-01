@@ -1,8 +1,8 @@
 import { ulid } from 'ulidx';
 import type { OperationContext } from './context.js';
-import type { Edge } from '@si-beaver/core';
-import type { RequirementNode } from '@si-beaver/core';
-import { isValidTransition, REQUIREMENT_TRANSITIONS } from '@si-beaver/core';
+import type { Edge } from '../edges/types.js';
+import type { RequirementNode } from '../nodes/types.js';
+import { isValidTransition, REQUIREMENT_TRANSITIONS } from '../lifecycle/machines.js';
 
 // ============================================================
 // define_requirement — 定义需求

@@ -1,6 +1,6 @@
 import type { Sql } from '../storage/db.js';
 import { NodeStore, EdgeStore, EventStore } from '../storage/stores.js';
-import { EventEmitter } from '@si-beaver/core';
+import { EventEmitter } from '../events/emitter.js';
 
 // ============================================================
 // 操作上下文 — 每个项目一个实例

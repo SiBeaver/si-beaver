@@ -1,8 +1,8 @@
 import { ulid } from 'ulidx';
 import type { OperationContext } from './context.js';
-import type { Edge } from '@si-beaver/core';
-import type { TaskNode } from '@si-beaver/core';
-import { isValidTransition, TASK_TRANSITIONS } from '@si-beaver/core';
+import type { Edge } from '../edges/types.js';
+import type { TaskNode } from '../nodes/types.js';
+import { isValidTransition, TASK_TRANSITIONS } from '../lifecycle/machines.js';
 
 // ============================================================
 // create_task — 创建任务

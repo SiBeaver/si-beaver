@@ -1,5 +1,5 @@
 import type { OperationContext } from '../../operations/context.js';
-import type { ExplorationNode } from '@si-beaver/core';
+import type { ExplorationNode } from '../../nodes/types.js';
 import type {
   ProjectionTemplate,
   GeneratedProjection,

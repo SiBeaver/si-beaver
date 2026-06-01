@@ -1,9 +1,9 @@
 import { ulid } from 'ulidx';
 import type { OperationContext } from './context.js';
-import type { GoalNode } from '@si-beaver/core';
-import type { Edge } from '@si-beaver/core';
-import type { EventRecord } from '@si-beaver/core';
-import { isValidTransition, GOAL_TRANSITIONS } from '@si-beaver/core';
+import type { GoalNode } from '../nodes/types.js';
+import type { Edge } from '../edges/types.js';
+import type { EventRecord } from '../events/types.js';
+import { isValidTransition, GOAL_TRANSITIONS } from '../lifecycle/machines.js';
 
 // ============================================================
 // define_goal — 定义目标

@@ -9,7 +9,7 @@ export default defineConfig({
     'src/api/server.ts',
   ],
   format: ['esm'],
-  dts: true,
+  dts: !process.env.SKIP_DTS,
   clean: true,
   sourcemap: true,
 });

@@ -1,5 +1,5 @@
 import type { OperationContext } from './context.js';
-import type { CognitiveNode, GoalNode } from '@si-beaver/core';
+import type { CognitiveNode, GoalNode } from '../nodes/types.js';
 
 // ============================================================
 // get_roadmap — 获取目标路线图（树状结构）

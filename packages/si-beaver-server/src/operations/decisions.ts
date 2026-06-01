@@ -1,7 +1,7 @@
 import { ulid } from 'ulidx';
 import type { OperationContext } from './context.js';
-import type { DecisionNode } from '@si-beaver/core';
-import type { Edge } from '@si-beaver/core';
+import type { DecisionNode } from '../nodes/types.js';
+import type { Edge } from '../edges/types.js';
 
 // ============================================================
 // record_decision — 记录决策

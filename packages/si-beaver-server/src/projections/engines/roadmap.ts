@@ -6,7 +6,7 @@ import type {
   RiskNode,
   TechDebtNode,
   CognitiveNode,
-} from '@si-beaver/core';
+} from '../../nodes/types.js';
 import { getRoadmap, currentBlockers } from '../../operations/queries.js';
 import type { RoadmapItem } from '../../operations/queries.js';
 import type {
