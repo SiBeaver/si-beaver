@@ -25,6 +25,7 @@ import {
 import { ProjectManager } from '../projects/index.js';
 import { startEmbedSync, getEmbedSyncStats } from '../jobs/embed-sync.js';
 import { snakeToCamel, camelToSnake, kebabToSnake } from './transforms.js';
+import { triggerAutoLink, AUTO_LINK_OPERATIONS } from '../auto-link/index.js';
 
 // ============================================================
 // 操作处理器注册表（导出供 direct-mode 调用方使用）
@@ -524,6 +525,7 @@ ${existingSummary || '（暂无）'}
       const input = await c.req.json();
       const snakeInput = camelToSnake(input);
       const result = await handler(ctx, snakeInput);
+      if (AUTO_LINK_OPERATIONS.has(snakeName)) triggerAutoLink(ctx, result);
       return json(c, result);
     } catch (e: any) {
       return json(c, { error: e.message }, 400);
@@ -643,7 +645,9 @@ ${existingSummary || '（暂无）'}
     try {
       const input = await c.req.json();
       const snakeInput = camelToSnake(input);
-      const result = await handler(await defaultCtx(), snakeInput);
+      const ctx = await defaultCtx();
+      const result = await handler(ctx, snakeInput);
+      if (AUTO_LINK_OPERATIONS.has(snakeName)) triggerAutoLink(ctx, result);
       return json(c, result);
     } catch (e: any) {
       return json(c, { error: e.message }, 400);

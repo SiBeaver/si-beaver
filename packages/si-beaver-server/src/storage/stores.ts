@@ -197,6 +197,23 @@ export class NodeStore {
         `;
     return rows.map(r => ({ ...rowToNode(r), distance: parseFloat(r.distance) }));
   }
+
+  async getIsolatedNodes(maxEdges: number, limit: number = 10): Promise<CognitiveNode[]> {
+    const rows = await this.sql`
+      SELECT n.* FROM nodes n
+      LEFT JOIN (
+        SELECT source_id AS node_id FROM edges WHERE project_id = ${this.projectId}
+        UNION ALL
+        SELECT target_id AS node_id FROM edges WHERE project_id = ${this.projectId}
+      ) e ON e.node_id = n.id
+      WHERE n.project_id = ${this.projectId}
+      GROUP BY n.id
+      HAVING COUNT(e.node_id) <= ${maxEdges}
+      ORDER BY n.created_at DESC
+      LIMIT ${limit}
+    `;
+    return rows.map(rowToNode);
+  }
 }
 
 // ============================================================
