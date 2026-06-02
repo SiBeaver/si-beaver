@@ -14,6 +14,7 @@ export const NodeType = z.enum([
   'artifact',
   'knowledge',
   'requirement',
+  'capability',
 ]);
 export type NodeType = z.infer<typeof NodeType>;
 
@@ -174,6 +175,19 @@ export const RequirementNode = BaseNode.extend({
 });
 export type RequirementNode = z.infer<typeof RequirementNode>;
 
+export const CapabilityStatus = z.enum(['planned', 'alpha', 'beta', 'stable', 'deprecated']);
+export type CapabilityStatus = z.infer<typeof CapabilityStatus>;
+
+export const CapabilityNode = BaseNode.extend({
+  type: z.literal('capability'),
+  status: CapabilityStatus,
+  maturity: CapabilityStatus,
+  scope: z.string().default(''),
+  acceptance_criteria: z.array(z.string()).default([]),
+  domain: z.string().default(''),
+});
+export type CapabilityNode = z.infer<typeof CapabilityNode>;
+
 // ============================================================
 // 联合节点类型
 // ============================================================
@@ -188,5 +202,6 @@ export const CognitiveNode = z.discriminatedUnion('type', [
   ArtifactNode,
   KnowledgeNode,
   RequirementNode,
+  CapabilityNode,
 ]);
 export type CognitiveNode = z.infer<typeof CognitiveNode>;

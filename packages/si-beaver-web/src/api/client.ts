@@ -145,3 +145,24 @@ export function executeOperation(slug: string, operation: string, input: Record<
 export function deleteNode(slug: string, nodeId: string) {
   return post<unknown>(`/api/v1/projects/${slug}/operations/delete-node`, { node_id: nodeId });
 }
+
+export interface GeneratedProjection {
+  markdown: string;
+  metadata: {
+    title: string;
+    generatedAt: string;
+    sourceNodeCount: number;
+    sourceNodeIds: string[];
+  };
+}
+
+export function fetchDeliveryMap(slug: string) {
+  return post<GeneratedProjection>(
+    `/api/v1/projects/${slug}/projections/delivery-map/generate`,
+    {},
+  );
+}
+
+export function fetchCapabilities(slug: string) {
+  return get<CognitiveNode[]>(`/api/v1/projects/${slug}/nodes?type=capability`);
+}

@@ -14,6 +14,7 @@ import {
   recordDecision,
   createTask, updateTaskStatus, backfillTask,
   defineRequirement, updateRequirementStatus,
+  defineCapability, updateCapability,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
   linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext,
@@ -102,6 +103,8 @@ const operationHandlers: Record<string, (ctx: OperationContext, input: any) => P
   backfill_task: backfillTask,
   define_requirement: defineRequirement,
   update_requirement_status: updateRequirementStatus,
+  define_capability: defineCapability,
+  update_capability: updateCapability,
   identify_risk: identifyRisk,
   update_risk: updateRisk,
   register_tech_debt: registerTechDebt,
@@ -305,6 +308,33 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     revision_suggestion: z.string().optional().describe('修订建议（仅 revision_needed 时）'),
   }, log('update_requirement_status', async (args) => {
     return jsonResult(await updateRequirementStatus(getCtx(), args));
+  }));
+
+  // --- 能力 ---
+  server.tool('define_capability', '定义产品交付的一项能力', {
+    title: z.string().describe('能力标题'),
+    description: z.string().optional().describe('能力描述'),
+    maturity: z.enum(['planned', 'alpha', 'beta', 'stable', 'deprecated']).optional().describe('成熟度（默认 planned）'),
+    scope: z.string().optional().describe('能力边界说明'),
+    domain: z.string().optional().describe('能力域分组'),
+    acceptance_criteria: z.array(z.string()).optional().describe('验收标准'),
+    parent_capability: z.string().optional().describe('父能力 ID（子能力场景）'),
+    parent_goal: z.string().optional().describe('关联目标 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, log('define_capability', async (args) => {
+    return jsonResult(await defineCapability(getCtx(), args));
+  }));
+
+  server.tool('update_capability', '更新能力成熟度或定义', {
+    capability_id: z.string().describe('能力 ID'),
+    maturity: z.enum(['planned', 'alpha', 'beta', 'stable', 'deprecated']).optional().describe('新成熟度'),
+    scope: z.string().optional().describe('更新边界说明'),
+    acceptance_criteria: z.array(z.string()).optional().describe('更新验收标准'),
+    description: z.string().optional().describe('更新描述'),
+    domain: z.string().optional().describe('更新能力域'),
+    tags: z.array(z.string()).optional().describe('更新标签'),
+  }, log('update_capability', async (args) => {
+    return jsonResult(await updateCapability(getCtx(), args));
   }));
 
   // --- 风险与技术债 ---
@@ -722,6 +752,35 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     revision_suggestion: z.string().optional().describe('修订建议（仅 revision_needed 时）'),
   }, log('update_requirement_status', async ({ project, ...args }) => {
     return jsonResult(await updateRequirementStatus(await ctx(project), args));
+  }));
+
+  // --- 能力 ---
+  server.tool('define_capability', '定义产品交付的一项能力', {
+    project: projectParam,
+    title: z.string().describe('能力标题'),
+    description: z.string().optional().describe('能力描述'),
+    maturity: z.enum(['planned', 'alpha', 'beta', 'stable', 'deprecated']).optional().describe('成熟度（默认 planned）'),
+    scope: z.string().optional().describe('能力边界说明'),
+    domain: z.string().optional().describe('能力域分组'),
+    acceptance_criteria: z.array(z.string()).optional().describe('验收标准'),
+    parent_capability: z.string().optional().describe('父能力 ID（子能力场景）'),
+    parent_goal: z.string().optional().describe('关联目标 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, log('define_capability', async ({ project, ...args }) => {
+    return jsonResult(await defineCapability(await ctx(project), args));
+  }));
+
+  server.tool('update_capability', '更新能力成熟度或定义', {
+    project: projectParam,
+    capability_id: z.string().describe('能力 ID'),
+    maturity: z.enum(['planned', 'alpha', 'beta', 'stable', 'deprecated']).optional().describe('新成熟度'),
+    scope: z.string().optional().describe('更新边界说明'),
+    acceptance_criteria: z.array(z.string()).optional().describe('更新验收标准'),
+    description: z.string().optional().describe('更新描述'),
+    domain: z.string().optional().describe('更新能力域'),
+    tags: z.array(z.string()).optional().describe('更新标签'),
+  }, log('update_capability', async ({ project, ...args }) => {
+    return jsonResult(await updateCapability(await ctx(project), args));
   }));
 
   // --- 风险与技术债 ---

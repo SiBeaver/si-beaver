@@ -53,4 +53,9 @@ export const LINK_STRATEGIES: Record<NodeType, LinkStrategy> = {
     preferredRelations: ['evidenced_by', 'relates_to'],
     maxCandidates: 8,
   },
+  capability: {
+    candidateTypes: ['goal', 'task', 'requirement', 'capability'],
+    preferredRelations: ['decomposes_into', 'fulfills', 'relates_to'],
+    maxCandidates: 12,
+  },
 };

@@ -12,7 +12,7 @@ export interface ProjectMeta {
 
 export interface CognitiveNode {
   id: string;
-  type: 'goal' | 'task' | 'exploration' | 'decision' | 'risk' | 'tech_debt' | 'artifact' | 'knowledge' | 'requirement';
+  type: 'goal' | 'task' | 'exploration' | 'decision' | 'risk' | 'tech_debt' | 'artifact' | 'knowledge' | 'requirement' | 'capability';
   title: string;
   description: string;
   status: string;
@@ -59,6 +59,9 @@ export interface CognitiveNode {
   contentSummary?: string | null;
   // requirement
   sourceDetail?: string | null;
+  // capability
+  maturity?: 'planned' | 'alpha' | 'beta' | 'stable' | 'deprecated';
+  scope?: string;
 }
 
 export interface RoadmapItem {

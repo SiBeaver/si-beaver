@@ -14,6 +14,7 @@ import {
   recordDecision,
   createTask, updateTaskStatus, backfillTask,
   defineRequirement, updateRequirementStatus,
+  defineCapability, updateCapability,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge, updateKnowledge, getKnowledgeTree, pinKnowledge, moveKnowledge,
   linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext,
@@ -45,6 +46,8 @@ export const operationHandlers: Record<string, (ctx: OperationContext, input: an
   backfill_task: backfillTask,
   define_requirement: defineRequirement,
   update_requirement_status: updateRequirementStatus,
+  define_capability: defineCapability,
+  update_capability: updateCapability,
   identify_risk: identifyRisk,
   update_risk: updateRisk,
   register_tech_debt: registerTechDebt,
@@ -148,6 +151,14 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     } catch (e: any) {
       return json(c, { error: e.message }, 404);
     }
+  });
+
+  app.get('/api/v1/projects/:slug/nodes', async (c) => {
+    const slug = c.req.param('slug');
+    const type = c.req.query('type');
+    if (!type) return json(c, { error: 'Query parameter "type" is required' }, 400);
+    const nodes = await getCtx(slug).nodes.getByType(type as any);
+    return json(c, nodes);
   });
 
   app.get('/api/v1/projects/:slug/nodes/:id', async (c) => {

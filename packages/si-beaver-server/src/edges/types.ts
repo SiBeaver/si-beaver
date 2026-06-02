@@ -51,8 +51,8 @@ type RelationConstraint = {
 
 export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   decomposes_into: {
-    source: ['goal'],
-    target: ['goal', 'task'],
+    source: ['goal', 'capability'],
+    target: ['goal', 'task', 'capability'],
   },
   spawns: {
     source: ['goal', 'risk'],
@@ -80,18 +80,18 @@ export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   },
   blocks: {
     source: ['risk', 'tech_debt', 'requirement'],
-    target: ['goal', 'task'],
+    target: ['goal', 'task', 'capability'],
   },
   relates_to: {
-    source: ['goal', 'task', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement'],
-    target: ['goal', 'task', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement'],
+    source: ['goal', 'task', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement', 'capability'],
+    target: ['goal', 'task', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement', 'capability'],
   },
   supersedes: {
-    source: ['decision', 'knowledge', 'requirement'],
-    target: ['decision', 'knowledge', 'requirement'],
+    source: ['decision', 'knowledge', 'requirement', 'capability'],
+    target: ['decision', 'knowledge', 'requirement', 'capability'],
   },
   evidenced_by: {
-    source: ['knowledge', 'decision', 'requirement'],
+    source: ['knowledge', 'decision', 'requirement', 'capability'],
     target: ['artifact'],
   },
   derived_from: {
@@ -100,7 +100,7 @@ export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   },
   fulfills: {
     source: ['goal', 'task'],
-    target: ['requirement'],
+    target: ['requirement', 'capability'],
   },
   contradicts: {
     source: ['knowledge'],

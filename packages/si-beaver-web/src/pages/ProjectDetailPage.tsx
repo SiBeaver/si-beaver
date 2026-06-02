@@ -12,6 +12,7 @@ import {
   ArrowLeftOutlined,
   LogoutOutlined,
   BookOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
 import { useSWRConfig } from 'swr';
 import { WhatView } from '../components/what/WhatView';
@@ -21,6 +22,7 @@ import { TasksView } from '../components/tasks/TasksView';
 import { RequirementsView } from '../components/requirements/RequirementsView';
 import { KnowledgeBaseView } from '../components/knowledge/KnowledgeBaseView';
 import { HowtoView } from '../components/howto/HowtoView';
+import { CapabilitiesView } from '../components/capabilities/CapabilitiesView';
 import { clearToken } from '../lib/auth';
 import { LEGACY_TO_NEW } from '../lib/constants';
 import type { LegacyTab } from '../lib/constants';
@@ -35,6 +37,7 @@ const BASE_TABS: (TabPlugin & { builtin: true })[] = [
   { key: 'goals', label: '目标', icon: FlagOutlined, component: GoalsView, builtin: true },
   { key: 'tasks', label: '任务', icon: UnorderedListOutlined, component: TasksView, builtin: true },
   { key: 'requirements', label: '需求', icon: FileTextOutlined, component: RequirementsView, builtin: true },
+  { key: 'capabilities', label: '交付', icon: AppstoreOutlined, component: CapabilitiesView, builtin: true },
   { key: 'knowledge', label: '知识库', icon: BookOutlined, component: KnowledgeBaseView, builtin: true },
   { key: 'howto', label: '怎么用', icon: QuestionCircleOutlined, component: HowtoView, builtin: true },
 ];

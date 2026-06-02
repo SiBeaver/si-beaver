@@ -19,6 +19,7 @@ export const NODE_TYPE_COLORS: Record<CognitiveNode['type'], string> = {
   artifact: 'cyan',
   knowledge: 'geekblue',
   requirement: 'magenta',
+  capability: 'volcano',
 };
 
 export const NODE_TYPE_LABELS: Record<CognitiveNode['type'], string> = {
@@ -31,6 +32,7 @@ export const NODE_TYPE_LABELS: Record<CognitiveNode['type'], string> = {
   artifact: '产物',
   knowledge: '知识',
   requirement: '需求',
+  capability: '能力',
 };
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -59,6 +61,10 @@ export const STATUS_COLORS: Record<string, string> = {
   tentative: 'warning',
   established: 'success',
   outdated: 'default',
+  planned: 'default',
+  alpha: 'orange',
+  beta: 'blue',
+  stable: 'green',
 };
 
 export const PRIORITY_COLORS: Record<string, string> = {
@@ -94,6 +100,10 @@ export const STATUS_LABELS: Record<string, string> = {
   tentative: '暂定',
   established: '已确立',
   outdated: '已过时',
+  planned: '规划中',
+  alpha: '内测',
+  beta: '公测',
+  stable: '稳定',
 };
 
 export const PRIORITY_LABELS: Record<string, string> = {

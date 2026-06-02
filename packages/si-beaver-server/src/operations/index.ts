@@ -4,6 +4,7 @@ export { beginExploration, recordExplorationFinding, concludeExploration, abando
 export { recordDecision } from './decisions.js';
 export { createTask, updateTaskStatus, backfillTask } from './tasks.js';
 export { defineRequirement, updateRequirementStatus } from './requirements.js';
+export { defineCapability, updateCapability } from './capabilities.js';
 export { identifyRisk, updateRisk, registerTechDebt } from './risks.js';
 export { recordKnowledge, updateKnowledge, getKnowledgeTree, pinKnowledge, moveKnowledge } from './knowledge.js';
 export { linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext } from './graph.js';

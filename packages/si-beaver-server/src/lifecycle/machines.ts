@@ -1,4 +1,4 @@
-import type { GoalStatus, TaskStatus, ExplorationStatus, DecisionStatus, RiskStatus, TechDebtStatus, KnowledgeStatus, RequirementStatus } from '../nodes/types.js';
+import type { GoalStatus, TaskStatus, ExplorationStatus, DecisionStatus, RiskStatus, TechDebtStatus, KnowledgeStatus, RequirementStatus, CapabilityStatus } from '../nodes/types.js';
 
 // ============================================================
 // 生命周期状态转换规则
@@ -50,6 +50,13 @@ export const REQUIREMENT_TRANSITIONS: TransitionMap<RequirementStatus> = {
   accepted: ['in_execution', 'deprecated'],
   in_execution: ['satisfied', 'revision_needed'],
   revision_needed: ['accepted', 'deprecated'],
+};
+
+export const CAPABILITY_TRANSITIONS: TransitionMap<CapabilityStatus> = {
+  planned: ['alpha', 'deprecated'],
+  alpha: ['beta', 'deprecated'],
+  beta: ['stable', 'deprecated'],
+  stable: ['deprecated'],
 };
 
 // ============================================================
