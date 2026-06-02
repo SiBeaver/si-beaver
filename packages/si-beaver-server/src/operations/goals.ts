@@ -85,13 +85,6 @@ export interface DecomposeGoalInput {
     success_criteria?: string[];
     priority?: 'critical' | 'high' | 'medium' | 'low';
   }[];
-  tasks?: {
-    title: string;
-    description?: string;
-    effort?: 'trivial' | 'small' | 'medium' | 'large' | 'unknown';
-    priority?: 'critical' | 'high' | 'medium' | 'low';
-    acceptance_criteria?: string[];
-  }[];
   explorations_needed?: {
     topic: string;
     reason: string;
@@ -107,7 +100,6 @@ export async function decomposeGoal(ctx: OperationContext, input: DecomposeGoalI
   }
 
   const sub_goals_created: GoalNode[] = [];
-  const tasks_created: any[] = [];
   const explorations_created: any[] = [];
   const edges_created: Edge[] = [];
 
@@ -122,27 +114,6 @@ export async function decomposeGoal(ctx: OperationContext, input: DecomposeGoalI
     };
     await ctx.nodes.insert(node);
     sub_goals_created.push(node);
-
-    const edge: Edge = {
-      id: ulid(), source_id: input.goal_id, target_id: node.id,
-      relation: 'decomposes_into', weight: null, annotation: null, created_at: now,
-    };
-    await ctx.edges.insert(edge);
-    edges_created.push(edge);
-  }
-
-  // 创建任务
-  for (const t of input.tasks ?? []) {
-    const node = {
-      id: ulid(), type: 'task' as const, title: t.title,
-      description: t.description ?? '', status: 'proposed' as const,
-      tags: [], created_at: now, updated_at: now, metadata: {},
-      effort: t.effort ?? 'unknown' as const,
-      priority: t.priority ?? 'medium' as const,
-      acceptance_criteria: t.acceptance_criteria ?? [],
-    };
-    await ctx.nodes.insert(node);
-    tasks_created.push(node);
 
     const edge: Edge = {
       id: ulid(), source_id: input.goal_id, target_id: node.id,
@@ -179,12 +150,11 @@ export async function decomposeGoal(ctx: OperationContext, input: DecomposeGoalI
     node_type: 'goal',
     payload: {
       sub_goals: sub_goals_created.length,
-      tasks: tasks_created.length,
       explorations: explorations_created.length,
     },
   });
 
-  return { sub_goals_created, tasks_created, explorations_created, edges_created, event };
+  return { sub_goals_created, explorations_created, edges_created, event };
 }
 
 // ============================================================

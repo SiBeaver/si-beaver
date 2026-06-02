@@ -188,20 +188,20 @@ ${candidates.map((c, i) => `${i + 1}. [${c.type}] id=${c.id} title="${c.title}" 
 }
 
 function buildConstraintsSummary(sourceType: NodeType, candidates: CognitiveNode[]): string {
-  const candidateTypes = [...new Set(candidates.map(c => c.type))];
+  const candidateTypes: string[] = [...new Set(candidates.map(c => c.type))];
   const lines: string[] = [];
 
   for (const [relation, constraint] of Object.entries(RELATION_CONSTRAINTS)) {
-    const sourceMatch = constraint.source.includes(sourceType);
-    const targetMatch = constraint.target.some(t => candidateTypes.includes(t as NodeType));
-    const reverseSourceMatch = constraint.source.some(s => candidateTypes.includes(s as NodeType));
-    const reverseTargetMatch = constraint.target.includes(sourceType);
+    const sourceMatch = (constraint.source as string[]).includes(sourceType);
+    const targetMatch = (constraint.target as string[]).some(t => candidateTypes.includes(t));
+    const reverseSourceMatch = (constraint.source as string[]).some(s => candidateTypes.includes(s));
+    const reverseTargetMatch = (constraint.target as string[]).includes(sourceType);
 
     if (sourceMatch && targetMatch) {
-      lines.push(`${sourceType} -[${relation}]-> ${constraint.target.filter(t => candidateTypes.includes(t as NodeType)).join('|')}`);
+      lines.push(`${sourceType} -[${relation}]-> ${(constraint.target as string[]).filter(t => candidateTypes.includes(t)).join('|')}`);
     }
     if (reverseSourceMatch && reverseTargetMatch) {
-      lines.push(`${constraint.source.filter(s => candidateTypes.includes(s as NodeType)).join('|')} -[${relation}]-> ${sourceType}`);
+      lines.push(`${(constraint.source as string[]).filter(s => candidateTypes.includes(s)).join('|')} -[${relation}]-> ${sourceType}`);
     }
   }
 

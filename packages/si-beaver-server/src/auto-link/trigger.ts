@@ -4,7 +4,6 @@ import { config } from '../config/index.js';
 
 export const AUTO_LINK_OPERATIONS = new Set([
   'define_goal',
-  'create_task',
   'define_requirement',
   'record_knowledge',
   'record_decision',
@@ -33,7 +32,6 @@ export function triggerAutoLink(ctx: OperationContext, result: any): void {
 function extractNodeId(result: any): string | null {
   if (!result || typeof result !== 'object') return null;
   if (result.goal?.id) return result.goal.id;
-  if (result.task?.id) return result.task.id;
   if (result.requirement?.id) return result.requirement.id;
   if (result.knowledge?.id) return result.knowledge.id;
   if (result.decision?.id) return result.decision.id;

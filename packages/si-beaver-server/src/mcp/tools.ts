@@ -12,12 +12,11 @@ import {
   defineGoal, decomposeGoal, updateGoalStatus,
   beginExploration, recordExplorationFinding, concludeExploration, abandonExploration,
   recordDecision,
-  createTask, updateTaskStatus, backfillTask,
   defineRequirement, updateRequirementStatus,
   defineCapability, updateCapability, getCockpit,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
-  linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext,
+  linkNodes, deleteNode, getProjectState, getNodeContext,
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
   batchOperations,
@@ -98,9 +97,6 @@ const operationHandlers: Record<string, (ctx: OperationContext, input: any) => P
   conclude_exploration: concludeExploration,
   abandon_exploration: abandonExploration,
   record_decision: recordDecision,
-  create_task: createTask,
-  update_task_status: updateTaskStatus,
-  backfill_task: backfillTask,
   define_requirement: defineRequirement,
   update_requirement_status: updateRequirementStatus,
   define_capability: defineCapability,
@@ -139,7 +135,7 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     return jsonResult(await defineGoal(getCtx(), args));
   }));
 
-  server.tool('decompose_goal', '将目标分解为子目标、任务和需要的探索', {
+  server.tool('decompose_goal', '将目标分解为子目标和需要的探索', {
     goal_id: z.string().describe('要分解的目标 ID'),
     sub_goals: z.array(z.object({
       title: z.string(), description: z.string().optional(),
@@ -147,12 +143,6 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
       success_criteria: z.array(z.string()).optional(),
       priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
     })).optional().describe('子目标列表'),
-    tasks: z.array(z.object({
-      title: z.string(), description: z.string().optional(),
-      effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
-      priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
-      acceptance_criteria: z.array(z.string()).optional(),
-    })).optional().describe('任务列表'),
     explorations_needed: z.array(z.object({
       topic: z.string(), reason: z.string(), hypothesis: z.string().optional(),
     })).optional().describe('需要的探索'),
@@ -190,7 +180,7 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     return jsonResult(await recordExplorationFinding(getCtx(), args));
   }));
 
-  server.tool('conclude_exploration', '结论化探索，产出决策/知识/后续任务', {
+  server.tool('conclude_exploration', '结论化探索，产出决策/知识', {
     exploration_id: z.string().describe('探索 ID'),
     conclusion: z.string().describe('结论'),
     outcome: z.enum(['validated', 'invalidated', 'partial', 'inconclusive']).describe('结果类型'),
@@ -202,10 +192,6 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
       title: z.string(), domain: z.string(),
       description: z.string(), confidence: z.enum(['low', 'medium', 'high']).optional(),
     })).optional().describe('产出的知识'),
-    follow_up_tasks: z.array(z.object({
-      title: z.string(), description: z.string().optional(),
-      effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
-    })).optional().describe('后续任务'),
   }, log('conclude_exploration', async (args) => {
     return jsonResult(await concludeExploration(getCtx(), args));
   }));
@@ -244,47 +230,6 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     tags: z.array(z.string()).optional().describe('标签'),
   }, log('record_decision', async (args) => {
     return jsonResult(await recordDecision(getCtx(), args));
-  }));
-
-  // --- 任务 ---
-  server.tool('create_task', '创建一个具体任务', {
-    title: z.string().describe('任务标题'),
-    description: z.string().optional().describe('描述'),
-    effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional().describe('工作量'),
-    priority: z.enum(['critical', 'high', 'medium', 'low']).optional().describe('优先级'),
-    acceptance_criteria: z.array(z.string()).optional().describe('验收标准'),
-    parent_goal: z.string().optional().describe('所属目标 ID'),
-    addresses_tech_debt: z.string().optional().describe('解决的技术债 ID'),
-    mitigates_risk: z.string().optional().describe('缓解的风险 ID'),
-    tags: z.array(z.string()).optional().describe('标签'),
-  }, log('create_task', async (args) => {
-    return jsonResult(await createTask(getCtx(), args));
-  }));
-
-  server.tool('update_task_status', '更新任务状态', {
-    task_id: z.string().describe('任务 ID'),
-    new_status: z.enum(['proposed', 'ready', 'in_progress', 'done', 'cancelled']).describe('新状态'),
-    reason: z.string().optional().describe('变更原因'),
-    artifacts: z.array(z.object({
-      title: z.string(),
-      artifact_type: z.enum(['document', 'design', 'pr', 'commit', 'prototype', 'spec', 'other']),
-      uri: z.string().optional(), content_summary: z.string().optional(),
-    })).optional().describe('完成时产出的产物'),
-  }, log('update_task_status', async (args) => {
-    return jsonResult(await updateTaskStatus(getCtx(), args));
-  }));
-
-  server.tool('backfill_task', '补录历史任务状态，允许跳过中间状态直接设为 done/cancelled', {
-    task_id: z.string().describe('任务 ID'),
-    new_status: z.enum(['done', 'cancelled']).describe('终态'),
-    reason: z.string().optional().describe('变更原因'),
-    artifacts: z.array(z.object({
-      title: z.string(),
-      artifact_type: z.enum(['document', 'design', 'pr', 'commit', 'prototype', 'spec', 'other']),
-      uri: z.string().optional(), content_summary: z.string().optional(),
-    })).optional().describe('完成时产出的产物'),
-  }, log('backfill_task', async (args) => {
-    return jsonResult(await backfillTask(getCtx(), args));
   }));
 
   // --- 需求 ---
@@ -439,12 +384,6 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     return jsonResult(await getNodeContext(getCtx(), args.node_id, args.include_events ?? true));
   }));
 
-  server.tool('get_task_context', '获取任务执行上下文（含父目标、关联决策、知识、风险）', {
-    task_id: z.string().describe('任务 ID'),
-  }, log('get_task_context', async (args) => {
-    return jsonResult(await getTaskContext(getCtx(), args.task_id));
-  }));
-
   server.tool('search_nodes', '全文搜索节点', {
     query: z.string().describe('搜索关键词'),
   }, log('search_nodes', async (args) => {
@@ -577,7 +516,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     return jsonResult(await defineGoal(await ctx(project), args));
   }));
 
-  server.tool('decompose_goal', '将目标分解为子目标、任务和需要的探索', {
+  server.tool('decompose_goal', '将目标分解为子目标和需要的探索', {
     project: projectParam,
     goal_id: z.string().describe('要分解的目标 ID'),
     sub_goals: z.array(z.object({
@@ -586,12 +525,6 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
       success_criteria: z.array(z.string()).optional(),
       priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
     })).optional().describe('子目标列表'),
-    tasks: z.array(z.object({
-      title: z.string(), description: z.string().optional(),
-      effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
-      priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
-      acceptance_criteria: z.array(z.string()).optional(),
-    })).optional().describe('任务列表'),
     explorations_needed: z.array(z.object({
       topic: z.string(), reason: z.string(), hypothesis: z.string().optional(),
     })).optional().describe('需要的探索'),
@@ -645,10 +578,6 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
       title: z.string(), domain: z.string(),
       description: z.string(), confidence: z.enum(['low', 'medium', 'high']).optional(),
     })).optional().describe('产出的知识'),
-    follow_up_tasks: z.array(z.object({
-      title: z.string(), description: z.string().optional(),
-      effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
-    })).optional().describe('后续任务'),
   }, log('conclude_exploration', async ({ project, ...args }) => {
     return jsonResult(await concludeExploration(await ctx(project), args));
   }));
@@ -689,50 +618,6 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     tags: z.array(z.string()).optional(),
   }, log('record_decision', async ({ project, ...args }) => {
     return jsonResult(await recordDecision(await ctx(project), args));
-  }));
-
-  // --- 任务 ---
-  server.tool('create_task', '创建任务', {
-    project: projectParam,
-    title: z.string().describe('任务标题'),
-    description: z.string().optional(),
-    effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']).optional(),
-    priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
-    acceptance_criteria: z.array(z.string()).optional(),
-    parent_goal: z.string().optional(),
-    addresses_tech_debt: z.string().optional(),
-    mitigates_risk: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-  }, log('create_task', async ({ project, ...args }) => {
-    return jsonResult(await createTask(await ctx(project), args));
-  }));
-
-  server.tool('update_task_status', '更新任务状态', {
-    project: projectParam,
-    task_id: z.string().describe('任务 ID'),
-    new_status: z.enum(['proposed', 'ready', 'in_progress', 'done', 'cancelled']).describe('新状态'),
-    reason: z.string().optional(),
-    artifacts: z.array(z.object({
-      title: z.string(),
-      artifact_type: z.enum(['document', 'design', 'pr', 'commit', 'prototype', 'spec', 'other']),
-      uri: z.string().optional(), content_summary: z.string().optional(),
-    })).optional(),
-  }, log('update_task_status', async ({ project, ...args }) => {
-    return jsonResult(await updateTaskStatus(await ctx(project), args));
-  }));
-
-  server.tool('backfill_task', '补录历史任务状态，跳过中间状态', {
-    project: projectParam,
-    task_id: z.string().describe('任务 ID'),
-    new_status: z.enum(['done', 'cancelled']).describe('终态'),
-    reason: z.string().optional(),
-    artifacts: z.array(z.object({
-      title: z.string(),
-      artifact_type: z.enum(['document', 'design', 'pr', 'commit', 'prototype', 'spec', 'other']),
-      uri: z.string().optional(), content_summary: z.string().optional(),
-    })).optional(),
-  }, log('backfill_task', async ({ project, ...args }) => {
-    return jsonResult(await backfillTask(await ctx(project), args));
   }));
 
   // --- 需求 ---
@@ -889,12 +774,6 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     include_events: z.boolean().optional(),
   }, log('get_node_context', async ({ project, ...args }) => {
     return jsonResult(await getNodeContext(await ctx(project), args.node_id, args.include_events ?? true));
-  }));
-
-  server.tool('get_task_context', '获取任务执行上下文（含父目标、关联决策、知识、风险）', {
-    project: projectParam, task_id: z.string().describe('任务 ID'),
-  }, log('get_task_context', async ({ project, ...args }) => {
-    return jsonResult(await getTaskContext(await ctx(project), args.task_id));
   }));
 
   server.tool('search_nodes', '全文搜索节点', { project: projectParam, query: z.string() }, log('search_nodes', async ({ project, query }) => {

@@ -18,11 +18,6 @@ export const LINK_STRATEGIES: Record<NodeType, LinkStrategy> = {
     preferredRelations: ['fulfills', 'decomposes_into', 'relates_to'],
     maxCandidates: 15,
   },
-  task: {
-    candidateTypes: ['goal', 'task', 'risk', 'tech_debt'],
-    preferredRelations: ['decomposes_into', 'blocks', 'mitigates', 'addresses'],
-    maxCandidates: 12,
-  },
   knowledge: {
     candidateTypes: ['decision', 'goal', 'requirement', 'knowledge'],
     preferredRelations: ['informs', 'contradicts', 'relates_to'],
@@ -39,12 +34,12 @@ export const LINK_STRATEGIES: Record<NodeType, LinkStrategy> = {
     maxCandidates: 10,
   },
   risk: {
-    candidateTypes: ['goal', 'task', 'decision'],
+    candidateTypes: ['goal', 'decision'],
     preferredRelations: ['blocks', 'relates_to'],
     maxCandidates: 10,
   },
   tech_debt: {
-    candidateTypes: ['task', 'decision', 'goal'],
+    candidateTypes: ['decision', 'goal'],
     preferredRelations: ['blocks', 'addresses', 'relates_to'],
     maxCandidates: 10,
   },
@@ -54,8 +49,13 @@ export const LINK_STRATEGIES: Record<NodeType, LinkStrategy> = {
     maxCandidates: 8,
   },
   capability: {
-    candidateTypes: ['goal', 'task', 'requirement', 'capability'],
+    candidateTypes: ['goal', 'requirement', 'capability'],
     preferredRelations: ['decomposes_into', 'fulfills', 'relates_to'],
     maxCandidates: 12,
+  },
+  task: {
+    candidateTypes: ['goal'],
+    preferredRelations: ['relates_to'],
+    maxCandidates: 5,
   },
 };

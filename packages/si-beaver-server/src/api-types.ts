@@ -24,9 +24,6 @@ export type RequirementStatus =
   | 'proposed' | 'accepted' | 'in_execution'
   | 'revision_needed' | 'satisfied' | 'deprecated';
 
-export type TaskStatus =
-  | 'proposed' | 'ready' | 'in_progress' | 'done' | 'cancelled';
-
 // ============================================================
 // 基础节点
 // ============================================================
@@ -51,14 +48,6 @@ export interface ApiGoalNode extends ApiNode {
   priority: Priority;
 }
 
-export interface ApiTaskNode extends ApiNode {
-  type: 'task';
-  status: TaskStatus;
-  effort: 'trivial' | 'small' | 'medium' | 'large' | 'unknown';
-  priority: Priority;
-  acceptanceCriteria: string[];
-}
-
 export interface ApiRequirementNode extends ApiNode {
   type: 'requirement';
   status: RequirementStatus;
@@ -78,7 +67,6 @@ export interface ApiKnowledgeNode extends ApiNode {
 
 export type ApiCognitiveNode =
   | ApiGoalNode
-  | ApiTaskNode
   | ApiRequirementNode
   | ApiKnowledgeNode
   | ApiNode;
@@ -129,7 +117,6 @@ export interface ApiNodeContext {
 
 export interface ApiProjectState {
   goals: ApiNode[];
-  tasks: ApiNode[];
   requirements: ApiRequirementNode[];
   explorations: ApiNode[];
   decisions: ApiNode[];

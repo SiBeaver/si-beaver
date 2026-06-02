@@ -5,7 +5,6 @@ import {
   CodeOutlined,
   TeamOutlined,
   AimOutlined,
-  UnorderedListOutlined,
   CheckCircleOutlined,
   BookOutlined,
   WarningOutlined,
@@ -62,20 +61,10 @@ const MCP_GROUPS = [
     color: 'blue',
     tools: [
       { name: 'define_goal', desc: '定义项目目标，设定时间范围和优先级' },
-      { name: 'decompose_goal', desc: '将目标分解为子目标和任务' },
+      { name: 'decompose_goal', desc: '将目标分解为子目标和探索' },
       { name: 'update_goal_status', desc: '更新目标状态 (active/achieved/abandoned)' },
       { name: 'get_roadmap', desc: '获取目标路线图，支持层级展开' },
       { name: 'goal_progress', desc: '查看所有活跃目标的进度' },
-    ],
-  },
-  {
-    group: '任务 (Tasks)',
-    icon: <UnorderedListOutlined />,
-    color: 'green',
-    tools: [
-      { name: 'create_task', desc: '创建具体任务，绑定父目标和验收标准' },
-      { name: 'update_task_status', desc: '更新任务状态 (proposed→done)' },
-      { name: 'get_task_context', desc: '获取任务上下文：父目标、关联决策' },
     ],
   },
   {

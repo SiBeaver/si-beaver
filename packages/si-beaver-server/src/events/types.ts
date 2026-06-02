@@ -27,10 +27,6 @@ export const EventType = z.enum([
   // Knowledge
   'knowledge.recorded',
   'knowledge.invalidated',
-  // Task
-  'task.created',
-  'task.status_changed',
-  'task.backfilled',
   // Requirement
   'requirement.defined',
   'requirement.status_changed',

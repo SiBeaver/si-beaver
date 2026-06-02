@@ -63,9 +63,9 @@ describe('Storage Layer', () => {
         horizon: 'short', success_criteria: [], priority: 'medium',
       } as GoalNode);
       await nodes.insert({
-        id: ulid(), type: 'task', title: 'Task 1', description: '', status: 'proposed',
+        id: ulid(), type: 'exploration', title: 'Exploration 1', description: '', status: 'active',
         tags: [], created_at: now, updated_at: now, metadata: {},
-        effort: 'small', priority: 'medium', acceptance_criteria: [],
+        hypothesis: '', approach: '', findings: [], conclusion: null, outcome: null,
       } as any);
 
       const goals = await nodes.getByType('goal');
@@ -94,7 +94,7 @@ describe('Storage Layer', () => {
     it('应该能插入和查询边', async () => {
       const now = new Date().toISOString();
       const goalId = ulid();
-      const taskId = ulid();
+      const explorationId = ulid();
 
       await nodes.insert({
         id: goalId, type: 'goal', title: 'Goal', description: '', status: 'active',
@@ -102,18 +102,18 @@ describe('Storage Layer', () => {
         horizon: 'short', success_criteria: [], priority: 'high',
       } as GoalNode);
       await nodes.insert({
-        id: taskId, type: 'task', title: 'Task', description: '', status: 'proposed',
+        id: explorationId, type: 'exploration', title: 'Exploration', description: '', status: 'active',
         tags: [], created_at: now, updated_at: now, metadata: {},
-        effort: 'small', priority: 'high', acceptance_criteria: [],
+        hypothesis: '', approach: '', findings: [], conclusion: null, outcome: null,
       } as any);
 
       const edge: Edge = {
         id: ulid(),
         source_id: goalId,
-        target_id: taskId,
-        relation: 'decomposes_into',
+        target_id: explorationId,
+        relation: 'spawns',
         weight: null,
-        annotation: '目标分解为具体任务',
+        annotation: '目标衍生探索',
         created_at: now,
       };
 
@@ -121,10 +121,10 @@ describe('Storage Layer', () => {
 
       const fromGoal = await edges.getBySource(goalId);
       expect(fromGoal).toHaveLength(1);
-      expect(fromGoal[0].relation).toBe('decomposes_into');
+      expect(fromGoal[0].relation).toBe('spawns');
 
-      const toTask = await edges.getByTarget(taskId);
-      expect(toTask).toHaveLength(1);
+      const toExploration = await edges.getByTarget(explorationId);
+      expect(toExploration).toHaveLength(1);
     });
   });
 

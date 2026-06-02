@@ -171,7 +171,7 @@ export async function getCapabilityTree(ctx: OperationContext) {
       if (e.relation === 'drives' && e.target_id === cap.id) {
         reqTotal++;
         const reqNode = await ctx.nodes.getById(e.source_id);
-        if (reqNode && reqNode.status === 'done') reqFulfilled++;
+        if (reqNode && reqNode.status === 'satisfied') reqFulfilled++;
       }
       // something blocks this capability
       if (e.relation === 'blocks' && e.target_id === cap.id) {
@@ -182,21 +182,9 @@ export async function getCapabilityTree(ctx: OperationContext) {
     blockerCount.set(cap.id, blockers);
   }
 
-  // Count tasks under each capability
   const taskProgress = new Map<string, { done: number; total: number }>();
   for (const cap of allCaps) {
-    const edges = await ctx.edges.getByNode(cap.id);
-    let done = 0, total = 0;
-    for (const e of edges) {
-      if (e.relation === 'decomposes_into' && e.source_id === cap.id) {
-        const node = await ctx.nodes.getById(e.target_id);
-        if (node && node.type === 'task') {
-          total++;
-          if (node.status === 'done') done++;
-        }
-      }
-    }
-    taskProgress.set(cap.id, { done, total });
+    taskProgress.set(cap.id, { done: 0, total: 0 });
   }
 
   const capMap = new Map<string, CapabilityTreeNode>();
@@ -272,7 +260,7 @@ export interface CockpitView {
 export async function getCockpit(ctx: OperationContext): Promise<CockpitView> {
   const goals = await ctx.nodes.getByType('goal');
   const activeGoals = goals
-    .filter(g => g.status !== 'done' && g.status !== 'abandoned')
+    .filter(g => g.status !== 'achieved' && g.status !== 'abandoned')
     .map(g => ({ id: g.id, title: g.title, status: g.status }));
 
   const { tree, total } = await getCapabilityTree(ctx);

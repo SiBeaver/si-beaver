@@ -28,9 +28,6 @@ export type Priority = z.infer<typeof Priority>;
 export const GoalStatus = z.enum(['active', 'achieved', 'abandoned', 'deferred']);
 export type GoalStatus = z.infer<typeof GoalStatus>;
 
-export const TaskStatus = z.enum(['proposed', 'ready', 'in_progress', 'done', 'cancelled']);
-export type TaskStatus = z.infer<typeof TaskStatus>;
-
 export const ExplorationStatus = z.enum(['proposed', 'active', 'concluded', 'abandoned']);
 export type ExplorationStatus = z.infer<typeof ExplorationStatus>;
 
@@ -82,15 +79,6 @@ export const GoalNode = BaseNode.extend({
   priority: Priority,
 });
 export type GoalNode = z.infer<typeof GoalNode>;
-
-export const TaskNode = BaseNode.extend({
-  type: z.literal('task'),
-  status: TaskStatus,
-  effort: z.enum(['trivial', 'small', 'medium', 'large', 'unknown']),
-  priority: Priority,
-  acceptance_criteria: z.array(z.string()).default([]),
-});
-export type TaskNode = z.infer<typeof TaskNode>;
 
 export const ExplorationNode = BaseNode.extend({
   type: z.literal('exploration'),
@@ -195,7 +183,6 @@ export type CapabilityNode = z.infer<typeof CapabilityNode>;
 
 export const CognitiveNode = z.discriminatedUnion('type', [
   GoalNode,
-  TaskNode,
   ExplorationNode,
   DecisionNode,
   RiskNode,

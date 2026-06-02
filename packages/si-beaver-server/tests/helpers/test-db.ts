@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS nodes (
   data TEXT NOT NULL DEFAULT '{}',
   search_vector TEXT,
   embedding TEXT,
+  content TEXT NOT NULL DEFAULT '',
+  parent_id TEXT,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (project_id, id)
 );
 
@@ -92,13 +96,14 @@ export function createTestSql(dbPath: string = ':memory:'): { sql: Sql; db: Data
 
   const sql = function (strings: TemplateStringsArray, ...values: unknown[]) {
     const { sql: query, params } = translateQuery(strings, ...values);
+    const sqliteParams = params.map(v => typeof v === 'boolean' ? (v ? 1 : 0) : v);
     const isSelect = query.trim().toUpperCase().startsWith('SELECT') ||
       query.trim().toUpperCase().startsWith('WITH');
     try {
       if (isSelect) {
-        return Promise.resolve(db.prepare(query).all(...params));
+        return Promise.resolve(db.prepare(query).all(...sqliteParams));
       } else {
-        db.prepare(query).run(...params);
+        db.prepare(query).run(...sqliteParams);
         return Promise.resolve([]);
       }
     } catch (err) {

@@ -5,7 +5,6 @@ import {
   InfoCircleOutlined,
   BuildOutlined,
   FlagOutlined,
-  UnorderedListOutlined,
   FileTextOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
@@ -20,7 +19,6 @@ import { CockpitView } from '../components/cockpit/CockpitView';
 import { WhatView } from '../components/what/WhatView';
 import { DesignView } from '../components/design/DesignView';
 import { GoalsView } from '../components/goals/GoalsView';
-import { TasksView } from '../components/tasks/TasksView';
 import { RequirementsView } from '../components/requirements/RequirementsView';
 import { KnowledgeBaseView } from '../components/knowledge/KnowledgeBaseView';
 import { HowtoView } from '../components/howto/HowtoView';
@@ -38,7 +36,6 @@ const BASE_TABS: (TabPlugin & { builtin: true })[] = [
   { key: 'what', label: '是什么', icon: InfoCircleOutlined, component: WhatView, builtin: true },
   { key: 'design', label: '设计', icon: BuildOutlined, component: DesignView, builtin: true },
   { key: 'goals', label: '目标', icon: FlagOutlined, component: GoalsView, builtin: true },
-  { key: 'tasks', label: '任务', icon: UnorderedListOutlined, component: TasksView, builtin: true },
   { key: 'requirements', label: '需求', icon: FileTextOutlined, component: RequirementsView, builtin: true },
   { key: 'capabilities', label: '交付', icon: AppstoreOutlined, component: CapabilitiesView, builtin: true },
   { key: 'knowledge', label: '知识库', icon: BookOutlined, component: KnowledgeBaseView, builtin: true },

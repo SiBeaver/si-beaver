@@ -24,9 +24,6 @@ export interface CognitiveNode {
   horizon?: 'short' | 'medium' | 'long';
   successCriteria?: string[];
   priority?: 'critical' | 'high' | 'medium' | 'low';
-  // task
-  effort?: 'trivial' | 'small' | 'medium' | 'large' | 'unknown';
-  acceptanceCriteria?: string[];
   // exploration
   hypothesis?: string;
   approach?: string;
@@ -59,6 +56,7 @@ export interface CognitiveNode {
   contentSummary?: string | null;
   // requirement
   sourceDetail?: string | null;
+  acceptanceCriteria?: string[];
   // capability
   maturity?: 'planned' | 'alpha' | 'beta' | 'stable' | 'deprecated';
   scope?: string;
@@ -89,7 +87,6 @@ export interface ProjectState {
   recentDecisions: CognitiveNode[];
   openRisks: CognitiveNode[];
   criticalTechDebt: CognitiveNode[];
-  pendingTasks: CognitiveNode[];
   requirements: CognitiveNode[];
   openRequirements: CognitiveNode[];
   statistics: {
@@ -97,7 +94,6 @@ export interface ProjectState {
     achievedGoals: number;
     activeExplorations: number;
     openRisks: number;
-    pendingTasks: number;
     techDebtItems: number;
     totalRequirements: number;
     openRequirements: number;

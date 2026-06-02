@@ -53,7 +53,7 @@ type RelationConstraint = {
 export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   decomposes_into: {
     source: ['goal', 'capability', 'requirement'],
-    target: ['goal', 'task', 'capability', 'requirement'],
+    target: ['goal', 'capability', 'requirement'],
   },
   spawns: {
     source: ['goal', 'risk'],
@@ -65,27 +65,27 @@ export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   },
   informs: {
     source: ['knowledge', 'decision', 'requirement'],
-    target: ['decision', 'task', 'goal'],
+    target: ['decision', 'goal'],
   },
   creates: {
     source: ['decision'],
     target: ['tech_debt', 'risk'],
   },
   mitigates: {
-    source: ['task', 'decision'],
+    source: ['decision'],
     target: ['risk'],
   },
   addresses: {
-    source: ['task'],
+    source: ['decision'],
     target: ['tech_debt'],
   },
   blocks: {
     source: ['risk', 'tech_debt', 'requirement'],
-    target: ['goal', 'task', 'capability'],
+    target: ['goal', 'capability'],
   },
   relates_to: {
-    source: ['goal', 'task', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement', 'capability'],
-    target: ['goal', 'task', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement', 'capability'],
+    source: ['goal', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement', 'capability'],
+    target: ['goal', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement', 'capability'],
   },
   supersedes: {
     source: ['decision', 'knowledge', 'requirement', 'capability'],
@@ -96,11 +96,11 @@ export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
     target: ['artifact'],
   },
   derived_from: {
-    source: ['task', 'goal'],
+    source: ['goal'],
     target: ['exploration', 'knowledge'],
   },
   fulfills: {
-    source: ['goal', 'task'],
+    source: ['goal'],
     target: ['requirement', 'capability'],
   },
   contradicts: {

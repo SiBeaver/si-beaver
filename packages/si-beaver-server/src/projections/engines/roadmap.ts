@@ -1,7 +1,6 @@
 import type { OperationContext } from '../../operations/context.js';
 import type {
   GoalNode,
-  TaskNode,
   ExplorationNode,
   RiskNode,
   TechDebtNode,
@@ -50,10 +49,6 @@ function statusEmoji(status: string): string {
     abandoned: '✗',
     deferred: '⏸',
     proposed: '○',
-    ready: '◉',
-    in_progress: '◐',
-    done: '✓',
-    cancelled: '✗',
     concluded: '✓',
   };
   return map[status] ?? status;
@@ -108,7 +103,6 @@ function formatGoal(item: RoadmapItem, depth: number): string {
 
   // categorize children
   const subGoals = item.children.filter(c => c.node.type === 'goal');
-  const tasks = item.children.filter(c => c.node.type === 'task');
   const explorations = item.children.filter(c => c.node.type === 'exploration');
 
   if (subGoals.length > 0) {
@@ -116,16 +110,6 @@ function formatGoal(item: RoadmapItem, depth: number): string {
     for (const child of subGoals) {
       const sg = child.node as GoalNode;
       lines.push(`- ${priorityBadge(sg.priority)} **${sg.title}** — ${statusEmoji(sg.status)} ${sg.status} | ${formatProgress(child.progress.done, child.progress.total)}`);
-    }
-    lines.push('');
-  }
-
-  if (tasks.length > 0) {
-    lines.push('**任务**:\n');
-    for (const child of tasks) {
-      const t = child.node as TaskNode;
-      const check = t.status === 'done' ? 'x' : t.status === 'cancelled' ? '~' : ' ';
-      lines.push(`- [${check}] **${t.title}** — ${statusEmoji(t.status)} ${t.status} | 优先级: ${t.priority} | 工作量: ${t.effort ?? 'unknown'}`);
     }
     lines.push('');
   }

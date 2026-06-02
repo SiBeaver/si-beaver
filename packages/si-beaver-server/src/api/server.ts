@@ -12,12 +12,11 @@ import {
   defineGoal, decomposeGoal, updateGoalStatus,
   beginExploration, recordExplorationFinding, concludeExploration, abandonExploration,
   recordDecision,
-  createTask, updateTaskStatus, backfillTask,
   defineRequirement, updateRequirementStatus,
   defineCapability, updateCapability, getCapabilityTree, getCockpit,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge, updateKnowledge, getKnowledgeTree, pinKnowledge, moveKnowledge,
-  linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext,
+  linkNodes, deleteNode, getProjectState, getNodeContext,
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
   batchOperations,
@@ -41,9 +40,6 @@ export const operationHandlers: Record<string, (ctx: OperationContext, input: an
   conclude_exploration: concludeExploration,
   abandon_exploration: abandonExploration,
   record_decision: recordDecision,
-  create_task: createTask,
-  update_task_status: updateTaskStatus,
-  backfill_task: backfillTask,
   define_requirement: defineRequirement,
   update_requirement_status: updateRequirementStatus,
   define_capability: defineCapability,
@@ -166,16 +162,6 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     const nodeId = c.req.param('id');
     try {
       return json(c, await getNodeContext(getCtx(slug), nodeId));
-    } catch (e: any) {
-      return json(c, { error: e.message }, 404);
-    }
-  });
-
-  app.get('/api/v1/projects/:slug/tasks/:id/context', async (c) => {
-    const slug = c.req.param('slug');
-    const taskId = c.req.param('id');
-    try {
-      return json(c, await getTaskContext(getCtx(slug), taskId));
     } catch (e: any) {
       return json(c, { error: e.message }, 404);
     }

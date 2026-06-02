@@ -15,7 +15,6 @@ export interface DirectSibsContext {
   getNodeContext: (nodeId: string) => Promise<ApiNodeContext>;
   getEvents: (since?: string, limit?: number) => Promise<{ events: ApiEvent[] }>;
   defineGoal: (input: any) => Promise<any>;
-  createTask: (input: any) => Promise<any>;
   updateRequirementStatus: (input: any) => Promise<any>;
   linkNodes: (input: any) => Promise<any>;
   recordKnowledge: (input: any) => Promise<any>;
@@ -96,14 +95,6 @@ export const sibs = {
   }) {
     if (directCtx) return directCtx.defineGoal(input);
     return operation("define-goal", input);
-  },
-
-  createTask(input: {
-    title: string; description?: string; effort?: string;
-    priority?: string; acceptance_criteria?: string[]; parent_goal?: string;
-  }) {
-    if (directCtx) return directCtx.createTask(input);
-    return operation("create-task", input);
   },
 
   updateRequirementStatus(input: {

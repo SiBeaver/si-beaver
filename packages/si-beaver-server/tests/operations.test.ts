@@ -5,7 +5,6 @@ import {
   defineGoal, decomposeGoal, updateGoalStatus,
   beginExploration, recordExplorationFinding, concludeExploration, abandonExploration,
   recordDecision,
-  createTask, updateTaskStatus,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
   linkNodes, getProjectState, getNodeContext,
@@ -235,48 +234,6 @@ describe('Operations Layer', () => {
       const oldNode = ctx.nodes.getById(old.decision.id);
       expect(oldNode!.status).toBe('superseded');
       expect(result.edges_created.some(e => e.relation === 'supersedes')).toBe(true);
-    });
-  });
-
-  // ============================================================
-  // Task Operations
-  // ============================================================
-
-  describe('createTask', () => {
-    it('应该创建任务并关联目标', () => {
-      const goal = defineGoal(ctx, { title: '目标', horizon: 'short', priority: 'high' });
-      const result = createTask(ctx, {
-        title: '任务1',
-        effort: 'small',
-        parent_goal: goal.goal.id,
-      });
-
-      expect(result.task.title).toBe('任务1');
-      expect(result.task.status).toBe('proposed');
-      expect(result.edges_created).toHaveLength(1);
-    });
-  });
-
-  describe('updateTaskStatus', () => {
-    it('应该更新任务状态并创建产物', () => {
-      const task = createTask(ctx, { title: '任务' });
-      updateTaskStatus(ctx, { task_id: task.task.id, new_status: 'ready' });
-      updateTaskStatus(ctx, { task_id: task.task.id, new_status: 'in_progress' });
-      const result = updateTaskStatus(ctx, {
-        task_id: task.task.id,
-        new_status: 'done',
-        artifacts: [{ title: '代码提交', artifact_type: 'commit', uri: 'abc123' }],
-      });
-
-      expect(result.task.status).toBe('done');
-      expect(result.artifacts_created).toHaveLength(1);
-      expect(result.edges_created).toHaveLength(1);
-    });
-
-    it('应该允许从任何状态取消', () => {
-      const task = createTask(ctx, { title: '任务' });
-      const result = updateTaskStatus(ctx, { task_id: task.task.id, new_status: 'cancelled' });
-      expect(result.task.status).toBe('cancelled');
     });
   });
 

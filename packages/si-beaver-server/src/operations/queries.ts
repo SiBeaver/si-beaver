@@ -24,7 +24,7 @@ export async function getRoadmap(ctx: OperationContext, input: GetRoadmapInput =
   async function buildTree(nodeId: string, depth: number): Promise<RoadmapItem | null> {
     const node = await ctx.nodes.getById(nodeId);
     if (!node) return null;
-    if (!includeCompleted && (node.status === 'achieved' || node.status === 'abandoned' || node.status === 'done' || node.status === 'cancelled')) {
+    if (!includeCompleted && (node.status === 'achieved' || node.status === 'abandoned' || node.status === 'concluded' || node.status === 'deprecated')) {
       return null;
     }
 
@@ -48,7 +48,7 @@ export async function getRoadmap(ctx: OperationContext, input: GetRoadmapInput =
       }
     } else {
       total = 1;
-      done = (node.status === 'achieved' || node.status === 'done') ? 1 : 0;
+      done = (node.status === 'achieved' || node.status === 'concluded') ? 1 : 0;
     }
 
     return { node, children, progress: { total, done } };
@@ -102,7 +102,7 @@ export async function goalProgress(ctx: OperationContext) {
 
     const total = subItems.length;
     const done = subItems.filter(n =>
-      n.status === 'achieved' || n.status === 'done' || n.status === 'concluded'
+      n.status === 'achieved' || n.status === 'concluded'
     ).length;
     const percentage = total > 0 ? Math.round((done / total) * 100) : 0;
 
@@ -174,8 +174,8 @@ export async function knowledgeMap(ctx: OperationContext, domain?: string) {
 
 export async function staleItems(ctx: OperationContext, days: number = 7) {
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const activeStatuses = ['active', 'proposed', 'ready', 'in_progress', 'identified', 'analyzing', 'accepted'];
-  const types = ['goal', 'task', 'exploration', 'risk', 'tech_debt'] as const;
+  const activeStatuses = ['active', 'proposed', 'identified', 'analyzing', 'accepted'];
+  const types = ['goal', 'exploration', 'risk', 'tech_debt'] as const;
 
   const stale: CognitiveNode[] = [];
   for (const type of types) {

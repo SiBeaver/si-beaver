@@ -1,4 +1,4 @@
-import type { GoalStatus, TaskStatus, ExplorationStatus, DecisionStatus, RiskStatus, TechDebtStatus, KnowledgeStatus, RequirementStatus, CapabilityStatus } from '../nodes/types.js';
+import type { GoalStatus, ExplorationStatus, DecisionStatus, RiskStatus, TechDebtStatus, KnowledgeStatus, RequirementStatus, CapabilityStatus } from '../nodes/types.js';
 
 // ============================================================
 // 生命周期状态转换规则
@@ -9,12 +9,6 @@ type TransitionMap<S extends string> = Partial<Record<S, S[]>>;
 export const GOAL_TRANSITIONS: TransitionMap<GoalStatus> = {
   active: ['achieved', 'abandoned', 'deferred'],
   deferred: ['active', 'abandoned'],
-};
-
-export const TASK_TRANSITIONS: TransitionMap<TaskStatus> = {
-  proposed: ['ready', 'in_progress', 'cancelled'],
-  ready: ['in_progress', 'cancelled'],
-  in_progress: ['done', 'cancelled'],
 };
 
 export const EXPLORATION_TRANSITIONS: TransitionMap<ExplorationStatus> = {

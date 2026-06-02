@@ -142,11 +142,6 @@ export interface ConcludeExplorationInput {
     description: string;
     confidence?: 'low' | 'medium' | 'high';
   }[];
-  follow_up_tasks?: {
-    title: string;
-    description?: string;
-    effort?: 'trivial' | 'small' | 'medium' | 'large' | 'unknown';
-  }[];
 }
 
 export async function concludeExploration(ctx: OperationContext, input: ConcludeExplorationInput) {
@@ -171,7 +166,6 @@ export async function concludeExploration(ctx: OperationContext, input: Conclude
 
   const decisions_created: any[] = [];
   const knowledge_created: any[] = [];
-  const tasks_created: any[] = [];
   const edges_created: Edge[] = [];
 
   // 创建决策节点
@@ -220,27 +214,6 @@ export async function concludeExploration(ctx: OperationContext, input: Conclude
     edges_created.push(edge);
   }
 
-  // 创建后续任务
-  for (const t of input.follow_up_tasks ?? []) {
-    const task = {
-      id: ulid(), type: 'task' as const, title: t.title,
-      description: t.description ?? '', status: 'proposed' as const,
-      tags: [], created_at: now, updated_at: now, metadata: {},
-      effort: t.effort ?? 'unknown' as const,
-      priority: 'medium' as const,
-      acceptance_criteria: [],
-    };
-    await ctx.nodes.insert(task);
-    tasks_created.push(task);
-
-    const edge: Edge = {
-      id: ulid(), source_id: task.id, target_id: input.exploration_id,
-      relation: 'derived_from', weight: null, annotation: null, created_at: now,
-    };
-    await ctx.edges.insert(edge);
-    edges_created.push(edge);
-  }
-
   const event = await ctx.events.emit({
     event_type: 'exploration.concluded',
     operation: 'conclude_exploration',
@@ -251,11 +224,10 @@ export async function concludeExploration(ctx: OperationContext, input: Conclude
       outcome: input.outcome,
       decisions: decisions_created.length,
       knowledge: knowledge_created.length,
-      tasks: tasks_created.length,
     },
   });
 
-  return { exploration: updated, decisions_created, knowledge_created, tasks_created, edges_created, event };
+  return { exploration: updated, decisions_created, knowledge_created, edges_created, event };
 }
 
 // ============================================================

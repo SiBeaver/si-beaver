@@ -1,5 +1,5 @@
 import type { OperationContext } from '../../operations/context.js';
-import type { CapabilityNode, CognitiveNode, TaskNode } from '../../nodes/types.js';
+import type { CapabilityNode } from '../../nodes/types.js';
 import type { Edge } from '../../edges/types.js';
 import type {
   ProjectionTemplate,
@@ -25,9 +25,7 @@ const MATURITY_BADGE: Record<string, string> = {
 
 interface CapabilityTreeItem {
   node: CapabilityNode;
-  tasks: TaskNode[];
   children: CapabilityTreeItem[];
-  progress: { done: number; total: number };
 }
 
 async function getChildCapabilities(
@@ -48,71 +46,30 @@ async function getChildCapabilities(
   return children;
 }
 
-async function getChildTasks(
-  ctx: OperationContext,
-  capId: string,
-): Promise<TaskNode[]> {
-  const edges = await ctx.edges.getByNode(capId);
-  const outgoing = edges.filter(
-    (e: Edge) => e.source_id === capId && e.relation === 'decomposes_into',
-  );
-  const tasks: TaskNode[] = [];
-  for (const edge of outgoing) {
-    const node = await ctx.nodes.getById(edge.target_id);
-    if (node && node.type === 'task') {
-      tasks.push(node as TaskNode);
-    }
-  }
-  return tasks;
-}
-
 async function buildCapabilityTree(
   ctx: OperationContext,
   cap: CapabilityNode,
   depth: number = 0,
 ): Promise<CapabilityTreeItem> {
   if (depth > 5) {
-    return { node: cap, tasks: [], children: [], progress: { done: 0, total: 0 } };
+    return { node: cap, children: [] };
   }
 
-  const tasks = await getChildTasks(ctx, cap.id);
   const childCaps = await getChildCapabilities(ctx, cap.id);
   const children: CapabilityTreeItem[] = [];
   for (const child of childCaps) {
     children.push(await buildCapabilityTree(ctx, child, depth + 1));
   }
 
-  const taskDone = tasks.filter(t => t.status === 'done').length;
-  const taskTotal = tasks.length;
-  const childProgress = children.reduce(
-    (acc, c) => ({ done: acc.done + c.progress.done, total: acc.total + c.progress.total }),
-    { done: 0, total: 0 },
-  );
-
-  return {
-    node: cap,
-    tasks,
-    children,
-    progress: {
-      done: taskDone + childProgress.done,
-      total: taskTotal + childProgress.total,
-    },
-  };
-}
-
-function formatProgress(done: number, total: number): string {
-  if (total === 0) return '';
-  const pct = Math.round((done / total) * 100);
-  return `[${done}/${total} — ${pct}%]`;
+  return { node: cap, children };
 }
 
 function formatCapabilityItem(item: CapabilityTreeItem, depth: number): string {
   const indent = '  '.repeat(depth);
   const badge = MATURITY_BADGE[item.node.maturity] ?? item.node.maturity;
-  const prog = formatProgress(item.progress.done, item.progress.total);
   const parts: string[] = [];
 
-  parts.push(`${indent}- **${item.node.title}** ${badge} ${prog}`);
+  parts.push(`${indent}- **${item.node.title}** ${badge}`);
 
   if (item.node.scope) {
     parts.push(`${indent}  边界: ${item.node.scope}`);
@@ -133,7 +90,6 @@ function formatCapabilityItem(item: CapabilityTreeItem, depth: number): string {
 
 function collectIds(item: CapabilityTreeItem, set: Set<string>): void {
   set.add(item.node.id);
-  for (const t of item.tasks) set.add(t.id);
   for (const child of item.children) collectIds(child, set);
 }
 
