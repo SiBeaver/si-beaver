@@ -168,3 +168,18 @@ export interface CapabilityTreeResponse {
 export function fetchCapabilityTree(slug: string) {
   return get<CapabilityTreeResponse>(`/api/v1/projects/${slug}/capabilities/tree`);
 }
+
+export interface CockpitLayer {
+  id: string;
+  label: string;
+  capabilities: CapabilityTreeNode[];
+}
+
+export interface CockpitViewResponse {
+  mode: string;
+  layers: CockpitLayer[];
+}
+
+export function fetchCockpitView(slug: string) {
+  return get<CockpitViewResponse>(`/api/v1/projects/${slug}/cockpit-view`);
+}

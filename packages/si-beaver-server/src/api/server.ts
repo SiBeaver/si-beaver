@@ -257,6 +257,27 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     return json(c, await getCockpit(getCtx(slug)));
   });
 
+  app.get('/api/v1/projects/:slug/cockpit-view', async (c) => {
+    const slug = c.req.param('slug');
+    const project = await manager.getProject(slug);
+    if (!project) return json(c, { error: 'Project not found' }, 404);
+    const config = project.metadata?.cockpitView as any;
+    if (!config) return json(c, { error: 'No cockpitView configured in project metadata' }, 404);
+
+    const { tree } = await getCapabilityTree(getCtx(slug));
+    const treeByTitle = new Map(tree.map(n => [n.title, n]));
+
+    const layers = (config.layers ?? []).map((layer: any) => ({
+      id: layer.id,
+      label: layer.label,
+      capabilities: (layer.capabilities ?? [])
+        .map((title: string) => treeByTitle.get(title))
+        .filter(Boolean),
+    }));
+
+    return json(c, { mode: config.mode, layers });
+  });
+
   app.get('/api/v1/projects/:slug/stale', async (c) => {
     const slug = c.req.param('slug');
     const days = c.req.query('days');

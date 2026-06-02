@@ -19,7 +19,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/projects/:slug',
-    element: <Navigate to="what" replace />,
+    element: <Navigate to="cockpit" replace />,
   },
   {
     path: '/projects/:slug/:tab',

@@ -13,8 +13,10 @@ import {
   LogoutOutlined,
   BookOutlined,
   AppstoreOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons';
 import { useSWRConfig } from 'swr';
+import { CockpitView } from '../components/cockpit/CockpitView';
 import { WhatView } from '../components/what/WhatView';
 import { DesignView } from '../components/design/DesignView';
 import { GoalsView } from '../components/goals/GoalsView';
@@ -32,6 +34,7 @@ import type { TabPlugin } from '../plugin/types';
 const { Sider, Content } = Layout;
 
 const BASE_TABS: (TabPlugin & { builtin: true })[] = [
+  { key: 'cockpit', label: '驾驶舱', icon: DashboardOutlined, component: CockpitView, builtin: true },
   { key: 'what', label: '是什么', icon: InfoCircleOutlined, component: WhatView, builtin: true },
   { key: 'design', label: '设计', icon: BuildOutlined, component: DesignView, builtin: true },
   { key: 'goals', label: '目标', icon: FlagOutlined, component: GoalsView, builtin: true },
@@ -53,7 +56,7 @@ function getAllTabs(): TabPlugin[] {
 export function ProjectDetailPage() {
   const { slug, tab } = useParams<{ slug: string; tab: string }>();
   const allTabs = getAllTabs();
-  const activeTab = tab || 'what';
+  const activeTab = tab || 'cockpit';
   const navigate = useNavigate();
   const { mutate } = useSWRConfig();
   const [spinning, setSpinning] = useState(false);
