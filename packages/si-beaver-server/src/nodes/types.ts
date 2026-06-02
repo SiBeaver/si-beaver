@@ -185,6 +185,7 @@ export const CapabilityNode = BaseNode.extend({
   scope: z.string().default(''),
   acceptance_criteria: z.array(z.string()).default([]),
   domain: z.string().default(''),
+  focus: z.boolean().default(false),
 });
 export type CapabilityNode = z.infer<typeof CapabilityNode>;
 

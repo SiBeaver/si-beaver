@@ -14,7 +14,7 @@ import {
   recordDecision,
   createTask, updateTaskStatus, backfillTask,
   defineRequirement, updateRequirementStatus,
-  defineCapability, updateCapability,
+  defineCapability, updateCapability, getCockpit,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
   linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext,
@@ -321,6 +321,7 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     parent_capability: z.string().optional().describe('父能力 ID（子能力场景）'),
     parent_goal: z.string().optional().describe('关联目标 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
+    focus: z.boolean().optional().describe('是否为当前迭代聚焦能力'),
   }, log('define_capability', async (args) => {
     return jsonResult(await defineCapability(getCtx(), args));
   }));
@@ -333,6 +334,7 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     description: z.string().optional().describe('更新描述'),
     domain: z.string().optional().describe('更新能力域'),
     tags: z.array(z.string()).optional().describe('更新标签'),
+    focus: z.boolean().optional().describe('设置/取消当前迭代聚焦'),
   }, log('update_capability', async (args) => {
     return jsonResult(await updateCapability(getCtx(), args));
   }));
@@ -424,6 +426,10 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
   // --- 读操作 ---
   server.tool('get_project_state', '获取项目认知状态快照', {}, log('get_project_state', async () => {
     return jsonResult(await getProjectState(getCtx()));
+  }));
+
+  server.tool('cockpit', '驾驶舱视图：聚焦能力 + 进度 + 阻塞项', {}, log('cockpit', async () => {
+    return jsonResult(await getCockpit(getCtx()));
   }));
 
   server.tool('get_node_context', '获取节点完整上下文', {
@@ -766,6 +772,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     parent_capability: z.string().optional().describe('父能力 ID（子能力场景）'),
     parent_goal: z.string().optional().describe('关联目标 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
+    focus: z.boolean().optional().describe('是否为当前迭代聚焦能力'),
   }, log('define_capability', async ({ project, ...args }) => {
     return jsonResult(await defineCapability(await ctx(project), args));
   }));
@@ -779,6 +786,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     description: z.string().optional().describe('更新描述'),
     domain: z.string().optional().describe('更新能力域'),
     tags: z.array(z.string()).optional().describe('更新标签'),
+    focus: z.boolean().optional().describe('设置/取消当前迭代聚焦'),
   }, log('update_capability', async ({ project, ...args }) => {
     return jsonResult(await updateCapability(await ctx(project), args));
   }));
@@ -870,6 +878,10 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
   // --- 读操作 ---
   server.tool('get_project_state', '获取项目认知状态快照', { project: projectParam }, log('get_project_state', async ({ project }) => {
     return jsonResult(await getProjectState(await ctx(project)));
+  }));
+
+  server.tool('cockpit', '驾驶舱视图：聚焦能力 + 进度 + 阻塞项', { project: projectParam }, log('cockpit', async ({ project }) => {
+    return jsonResult(await getCockpit(await ctx(project)));
   }));
 
   server.tool('get_node_context', '获取节点完整上下文', {

@@ -19,6 +19,7 @@ export const RelationType = z.enum([
   'derived_from',
   'fulfills',
   'contradicts',
+  'drives',
 ]);
 export type RelationType = z.infer<typeof RelationType>;
 
@@ -51,8 +52,8 @@ type RelationConstraint = {
 
 export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   decomposes_into: {
-    source: ['goal', 'capability'],
-    target: ['goal', 'task', 'capability'],
+    source: ['goal', 'capability', 'requirement'],
+    target: ['goal', 'task', 'capability', 'requirement'],
   },
   spawns: {
     source: ['goal', 'risk'],
@@ -105,6 +106,10 @@ export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   contradicts: {
     source: ['knowledge'],
     target: ['requirement'],
+  },
+  drives: {
+    source: ['requirement'],
+    target: ['capability'],
   },
 };
 

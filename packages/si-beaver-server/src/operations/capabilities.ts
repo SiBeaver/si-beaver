@@ -13,6 +13,7 @@ export interface DefineCapabilityInput {
   parent_capability?: string;
   parent_goal?: string;
   tags?: string[];
+  focus?: boolean;
 }
 
 export async function defineCapability(ctx: OperationContext, input: DefineCapabilityInput) {
@@ -32,6 +33,7 @@ export async function defineCapability(ctx: OperationContext, input: DefineCapab
     scope: input.scope ?? '',
     acceptance_criteria: input.acceptance_criteria ?? [],
     domain: input.domain ?? '',
+    focus: input.focus ?? false,
   };
 
   await ctx.nodes.insert(capability);
@@ -82,6 +84,7 @@ export interface UpdateCapabilityInput {
   description?: string;
   domain?: string;
   tags?: string[];
+  focus?: boolean;
 }
 
 export async function updateCapability(ctx: OperationContext, input: UpdateCapabilityInput) {
@@ -103,6 +106,7 @@ export async function updateCapability(ctx: OperationContext, input: UpdateCapab
     description: input.description ?? cap.description,
     domain: input.domain ?? cap.domain,
     tags: input.tags ?? cap.tags,
+    focus: input.focus ?? cap.focus ?? false,
   };
 
   await ctx.nodes.update(updated);
@@ -132,8 +136,11 @@ export interface CapabilityTreeNode {
   acceptance_criteria: string[];
   tags: string[];
   updated_at: string;
+  focus: boolean;
   children: CapabilityTreeNode[];
   progress: { done: number; total: number };
+  requirements: { fulfilled: number; total: number };
+  blockers: number;
 }
 
 export async function getCapabilityTree(ctx: OperationContext) {
@@ -142,8 +149,15 @@ export async function getCapabilityTree(ctx: OperationContext) {
   const parentEdges = new Map<string, string[]>();
   const childOf = new Set<string>();
 
+  // Track requirements and blockers per capability
+  const reqProgress = new Map<string, { fulfilled: number; total: number }>();
+  const blockerCount = new Map<string, number>();
+
   for (const cap of allCaps) {
     const edges = await ctx.edges.getByNode(cap.id);
+    let reqTotal = 0, reqFulfilled = 0;
+    let blockers = 0;
+
     for (const e of edges) {
       if (e.relation === 'decomposes_into' && e.source_id === cap.id) {
         const target = allCaps.find(c => c.id === e.target_id);
@@ -153,7 +167,19 @@ export async function getCapabilityTree(ctx: OperationContext) {
           childOf.add(target.id);
         }
       }
+      // requirement drives this capability
+      if (e.relation === 'drives' && e.target_id === cap.id) {
+        reqTotal++;
+        const reqNode = await ctx.nodes.getById(e.source_id);
+        if (reqNode && reqNode.status === 'done') reqFulfilled++;
+      }
+      // something blocks this capability
+      if (e.relation === 'blocks' && e.target_id === cap.id) {
+        blockers++;
+      }
     }
+    reqProgress.set(cap.id, { fulfilled: reqFulfilled, total: reqTotal });
+    blockerCount.set(cap.id, blockers);
   }
 
   // Count tasks under each capability
@@ -185,8 +211,11 @@ export async function getCapabilityTree(ctx: OperationContext) {
       acceptance_criteria: cap.acceptance_criteria,
       tags: cap.tags,
       updated_at: cap.updated_at,
+      focus: cap.focus ?? false,
       children: [],
       progress: taskProgress.get(cap.id) ?? { done: 0, total: 0 },
+      requirements: reqProgress.get(cap.id) ?? { fulfilled: 0, total: 0 },
+      blockers: blockerCount.get(cap.id) ?? 0,
     });
   }
 
@@ -220,4 +249,72 @@ export async function getCapabilityTree(ctx: OperationContext) {
   for (const root of roots) aggregateProgress(root);
 
   return { tree: roots, total: allCaps.length };
+}
+
+// ============================================================
+// cockpit — project dashboard view
+// ============================================================
+
+export interface CockpitView {
+  goals: { id: string; title: string; status: string }[];
+  focused: CapabilityTreeNode[];
+  summary: {
+    total_capabilities: number;
+    focused_count: number;
+    total_blockers: number;
+    requirements_fulfilled: number;
+    requirements_total: number;
+    tasks_done: number;
+    tasks_total: number;
+  };
+}
+
+export async function getCockpit(ctx: OperationContext): Promise<CockpitView> {
+  const goals = await ctx.nodes.getByType('goal');
+  const activeGoals = goals
+    .filter(g => g.status !== 'done' && g.status !== 'abandoned')
+    .map(g => ({ id: g.id, title: g.title, status: g.status }));
+
+  const { tree, total } = await getCapabilityTree(ctx);
+
+  function collectFocused(nodes: CapabilityTreeNode[]): CapabilityTreeNode[] {
+    const result: CapabilityTreeNode[] = [];
+    for (const node of nodes) {
+      if (node.focus) result.push(node);
+      result.push(...collectFocused(node.children));
+    }
+    return result;
+  }
+
+  const focused = collectFocused(tree);
+
+  let totalBlockers = 0;
+  let reqFulfilled = 0, reqTotal = 0;
+  let tasksDone = 0, tasksTotal = 0;
+
+  function sumAll(nodes: CapabilityTreeNode[]) {
+    for (const node of nodes) {
+      totalBlockers += node.blockers;
+      reqFulfilled += node.requirements.fulfilled;
+      reqTotal += node.requirements.total;
+      tasksDone += node.progress.done;
+      tasksTotal += node.progress.total;
+      sumAll(node.children);
+    }
+  }
+  sumAll(tree);
+
+  return {
+    goals: activeGoals,
+    focused,
+    summary: {
+      total_capabilities: total,
+      focused_count: focused.length,
+      total_blockers: totalBlockers,
+      requirements_fulfilled: reqFulfilled,
+      requirements_total: reqTotal,
+      tasks_done: tasksDone,
+      tasks_total: tasksTotal,
+    },
+  };
 }
