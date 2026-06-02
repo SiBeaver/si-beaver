@@ -68,13 +68,6 @@ export const PRIORITY_COLORS: Record<string, string> = {
   low: 'default',
 };
 
-export const SEVERITY_COLORS: Record<string, string> = {
-  critical: 'red',
-  high: 'orange',
-  medium: 'gold',
-  low: 'default',
-};
-
 export const STATUS_LABELS: Record<string, string> = {
   active: '进行中',
   achieved: '已达成',
@@ -110,28 +103,8 @@ export const PRIORITY_LABELS: Record<string, string> = {
   low: '低',
 };
 
-export const SEVERITY_LABELS: Record<string, string> = {
-  critical: '严重',
-  high: '高',
-  medium: '中',
-  low: '低',
-};
-
 export const HORIZON_LABELS: Record<string, string> = {
   short: '短期',
   medium: '中期',
   long: '长期',
-};
-
-export const LIKELIHOOD_LABELS: Record<string, string> = {
-  low: '低',
-  medium: '中',
-  high: '高',
-};
-
-export const IMPACT_LABELS: Record<string, string> = {
-  low: '低',
-  medium: '中',
-  high: '高',
-  critical: '严重',
 };

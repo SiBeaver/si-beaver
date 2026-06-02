@@ -63,10 +63,6 @@ import type {
   RoadmapResponse,
   BlockersResponse,
   ProjectState,
-  StaleResponse,
-  GoalProgressResponse,
-  KnowledgeMapResponse,
-  ActivityResponse,
   NodeContext,
 } from '../lib/types';
 
@@ -84,19 +80,6 @@ export function fetchBlockers(slug: string) {
 
 export function fetchProjectState(slug: string) {
   return get<ProjectState>(`/api/v1/projects/${slug}/state`);
-}
-
-export function fetchStale(slug: string, days = 7) {
-  return get<StaleResponse>(`/api/v1/projects/${slug}/stale?days=${days}`);
-}
-
-export function fetchGoalProgress(slug: string) {
-  return get<GoalProgressResponse>(`/api/v1/projects/${slug}/goals/progress`);
-}
-
-export function fetchKnowledgeMap(slug: string, domain?: string) {
-  const params = domain ? `?domain=${encodeURIComponent(domain)}` : '';
-  return get<KnowledgeMapResponse>(`/api/v1/projects/${slug}/knowledge${params}`);
 }
 
 export interface KnowledgeTreeNode {
@@ -123,14 +106,6 @@ export interface KnowledgeTreeResponse {
 
 export function fetchKnowledgeTree(slug: string) {
   return get<KnowledgeTreeResponse>(`/api/v1/projects/${slug}/knowledge/tree`);
-}
-
-export function fetchActivity(slug: string, limit = 50) {
-  return get<ActivityResponse>(`/api/v1/projects/${slug}/activity?limit=${limit}`);
-}
-
-export function fetchFullTextSearch(slug: string, query: string) {
-  return get<{ results: import('../lib/types').CognitiveNode[] }>(`/api/v1/projects/${slug}/fts?q=${encodeURIComponent(query)}`);
 }
 
 export function fetchNodeContext(slug: string, nodeId: string) {

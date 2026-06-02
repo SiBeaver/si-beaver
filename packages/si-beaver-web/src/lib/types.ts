@@ -71,17 +71,6 @@ export interface RoadmapResponse {
   roadmap: RoadmapItem[];
 }
 
-export interface GoalProgressItem {
-  goal: CognitiveNode;
-  total: number;
-  done: number;
-  percentage: number;
-}
-
-export interface GoalProgressResponse {
-  goals: GoalProgressItem[];
-}
-
 export interface BlockerItem {
   blocker: CognitiveNode;
   blocks: CognitiveNode[];
@@ -112,17 +101,6 @@ export interface ProjectState {
   };
 }
 
-export interface StaleResponse {
-  staleItems: CognitiveNode[];
-  cutoffDate: string;
-  days: number;
-}
-
-export interface KnowledgeMapResponse {
-  knowledge: CognitiveNode[];
-  byDomain: Record<string, CognitiveNode[]>;
-}
-
 export interface EventRecord {
   id: string;
   timestamp: string;
@@ -133,10 +111,6 @@ export interface EventRecord {
   nodeType: string | null;
   payload: Record<string, unknown>;
   context: string | null;
-}
-
-export interface ActivityResponse {
-  events: EventRecord[];
 }
 
 export interface SemanticEdge {
