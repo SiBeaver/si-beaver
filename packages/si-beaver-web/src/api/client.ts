@@ -146,23 +146,25 @@ export function deleteNode(slug: string, nodeId: string) {
   return post<unknown>(`/api/v1/projects/${slug}/operations/delete-node`, { node_id: nodeId });
 }
 
-export interface GeneratedProjection {
-  markdown: string;
-  metadata: {
-    title: string;
-    generatedAt: string;
-    sourceNodeCount: number;
-    sourceNodeIds: string[];
-  };
+export interface CapabilityTreeNode {
+  id: string;
+  title: string;
+  description: string;
+  maturity: string;
+  scope: string;
+  domain: string;
+  acceptanceCriteria: string[];
+  tags: string[];
+  updatedAt: string;
+  children: CapabilityTreeNode[];
+  progress: { done: number; total: number };
 }
 
-export function fetchDeliveryMap(slug: string) {
-  return post<GeneratedProjection>(
-    `/api/v1/projects/${slug}/projections/delivery-map/generate`,
-    {},
-  );
+export interface CapabilityTreeResponse {
+  tree: CapabilityTreeNode[];
+  total: number;
 }
 
-export function fetchCapabilities(slug: string) {
-  return get<CognitiveNode[]>(`/api/v1/projects/${slug}/nodes?type=capability`);
+export function fetchCapabilityTree(slug: string) {
+  return get<CapabilityTreeResponse>(`/api/v1/projects/${slug}/capabilities/tree`);
 }

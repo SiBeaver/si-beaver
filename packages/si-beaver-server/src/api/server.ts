@@ -14,7 +14,7 @@ import {
   recordDecision,
   createTask, updateTaskStatus, backfillTask,
   defineRequirement, updateRequirementStatus,
-  defineCapability, updateCapability,
+  defineCapability, updateCapability, getCapabilityTree,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge, updateKnowledge, getKnowledgeTree, pinKnowledge, moveKnowledge,
   linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext,
@@ -245,6 +245,11 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
   app.get('/api/v1/projects/:slug/knowledge/tree', async (c) => {
     const slug = c.req.param('slug');
     return json(c, await getKnowledgeTree(getCtx(slug)));
+  });
+
+  app.get('/api/v1/projects/:slug/capabilities/tree', async (c) => {
+    const slug = c.req.param('slug');
+    return json(c, await getCapabilityTree(getCtx(slug)));
   });
 
   app.get('/api/v1/projects/:slug/stale', async (c) => {

@@ -117,3 +117,107 @@ export async function updateCapability(ctx: OperationContext, input: UpdateCapab
 
   return { capability: updated, event };
 }
+
+// ============================================================
+// capability tree
+// ============================================================
+
+export interface CapabilityTreeNode {
+  id: string;
+  title: string;
+  description: string;
+  maturity: string;
+  scope: string;
+  domain: string;
+  acceptance_criteria: string[];
+  tags: string[];
+  updated_at: string;
+  children: CapabilityTreeNode[];
+  progress: { done: number; total: number };
+}
+
+export async function getCapabilityTree(ctx: OperationContext) {
+  const allCaps = await ctx.nodes.getByType('capability') as CapabilityNode[];
+
+  const parentEdges = new Map<string, string[]>();
+  const childOf = new Set<string>();
+
+  for (const cap of allCaps) {
+    const edges = await ctx.edges.getByNode(cap.id);
+    for (const e of edges) {
+      if (e.relation === 'decomposes_into' && e.source_id === cap.id) {
+        const target = allCaps.find(c => c.id === e.target_id);
+        if (target) {
+          if (!parentEdges.has(cap.id)) parentEdges.set(cap.id, []);
+          parentEdges.get(cap.id)!.push(target.id);
+          childOf.add(target.id);
+        }
+      }
+    }
+  }
+
+  // Count tasks under each capability
+  const taskProgress = new Map<string, { done: number; total: number }>();
+  for (const cap of allCaps) {
+    const edges = await ctx.edges.getByNode(cap.id);
+    let done = 0, total = 0;
+    for (const e of edges) {
+      if (e.relation === 'decomposes_into' && e.source_id === cap.id) {
+        const node = await ctx.nodes.getById(e.target_id);
+        if (node && node.type === 'task') {
+          total++;
+          if (node.status === 'done') done++;
+        }
+      }
+    }
+    taskProgress.set(cap.id, { done, total });
+  }
+
+  const capMap = new Map<string, CapabilityTreeNode>();
+  for (const cap of allCaps) {
+    capMap.set(cap.id, {
+      id: cap.id,
+      title: cap.title,
+      description: cap.description,
+      maturity: cap.maturity,
+      scope: cap.scope,
+      domain: cap.domain,
+      acceptance_criteria: cap.acceptance_criteria,
+      tags: cap.tags,
+      updated_at: cap.updated_at,
+      children: [],
+      progress: taskProgress.get(cap.id) ?? { done: 0, total: 0 },
+    });
+  }
+
+  // Build tree
+  for (const [parentId, childIds] of parentEdges) {
+    const parent = capMap.get(parentId);
+    if (!parent) continue;
+    for (const childId of childIds) {
+      const child = capMap.get(childId);
+      if (child) parent.children.push(child);
+    }
+  }
+
+  // Aggregate progress bottom-up
+  function aggregateProgress(node: CapabilityTreeNode): { done: number; total: number } {
+    let { done, total } = node.progress;
+    for (const child of node.children) {
+      const cp = aggregateProgress(child);
+      done += cp.done;
+      total += cp.total;
+    }
+    node.progress = { done, total };
+    return node.progress;
+  }
+
+  const roots = allCaps
+    .filter(c => !childOf.has(c.id))
+    .map(c => capMap.get(c.id)!)
+    .filter(Boolean);
+
+  for (const root of roots) aggregateProgress(root);
+
+  return { tree: roots, total: allCaps.length };
+}
