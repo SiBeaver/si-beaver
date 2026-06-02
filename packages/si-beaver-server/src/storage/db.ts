@@ -90,6 +90,29 @@ CREATE EXTENSION IF NOT EXISTS vector;
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS embedding vector(1024);
 CREATE INDEX IF NOT EXISTS idx_nodes_embedding
   ON nodes USING hnsw (embedding vector_cosine_ops);
+
+-- knowledge tree: content, parent_id, pinned, sort_order
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS content TEXT NOT NULL DEFAULT '';
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS parent_id TEXT;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_nodes_parent ON nodes(project_id, parent_id);
+
+-- Update search_vector to include content (idempotent: check column definition)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'nodes' AND column_name = 'search_vector'
+      AND generation_expression LIKE '%content%'
+  ) THEN
+    ALTER TABLE nodes DROP COLUMN IF EXISTS search_vector;
+    ALTER TABLE nodes ADD COLUMN search_vector TSVECTOR GENERATED ALWAYS AS (
+      to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(description, '') || ' ' || coalesce(content, ''))
+    ) STORED;
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_nodes_fts ON nodes USING GIN(search_vector);
 `;
 
 let _sql: postgres.Sql | null = null;

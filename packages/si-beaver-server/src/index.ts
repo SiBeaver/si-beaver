@@ -21,16 +21,8 @@ export { createSiBeaverApp, operationHandlers, type SiBeaverApp } from './api/se
 export { handleMcpRequest } from './mcp/http-server.js';
 export { startEmbedSync, getEmbedSyncStats } from './jobs/embed-sync.js';
 
-// workflow engine
+// config
 export { config } from './config/index.js';
-export * from './types/tool.js';
-export * from './types/workflow.js';
-export { resolveDeep, evaluateExpr } from './engine/expression.js';
-export type { EvalContext } from './engine/expression.js';
-export { WorkflowEngine } from './engine/workflow-engine.js';
-export { registerTool, getTool, listTools } from './tools/registry.js';
-export { initTools } from './tools/init.js';
-export { run, hasBinary } from './tools/cli-utils.js';
 
 // sibs client & LLM
 export { sibs, setDirectSibs, type DirectSibsContext } from './sibs-client.js';
@@ -38,8 +30,6 @@ export { chatCompletion, jsonCompletion } from './llm-client.js';
 export type { ChatMessage } from './llm-client.js';
 export { startPoller, onEvent, setDirectEventSource, type DirectEventSource } from './event-poller.js';
 export type { EventHandler } from './event-poller.js';
-export { saveRun, getRun, listRuns, updateRun } from './run-store.js';
-export type { WorkflowRun } from './run-store.js';
 export type {
   ApiEvent,
   ApiNode,
@@ -53,4 +43,3 @@ export type {
   ApiEdge,
   ApiFieldDiff,
 } from './api-types.js';
-export { SibsReporter } from './sibs-reporter.js';

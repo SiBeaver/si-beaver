@@ -8,5 +8,4 @@ export const config = {
   llmApiKey: process.env.LLM_API_KEY || "",
   llmModel: process.env.LLM_MODEL || "gpt-4o",
   pollInterval: parseInt(process.env.POLL_INTERVAL || "10000", 10),
-  dataDir: process.env.DATA_DIR || "./data",
 };

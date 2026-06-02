@@ -207,6 +207,7 @@ export async function concludeExploration(ctx: OperationContext, input: Conclude
       confidence: k.confidence ?? 'medium' as const,
       source: `Exploration: ${exploration.title}`,
       valid_until: null,
+      content: '', parent_id: null, pinned: false, sort_order: 0,
     };
     await ctx.nodes.insert(knowledge);
     knowledge_created.push(knowledge);
@@ -297,6 +298,7 @@ export async function abandonExploration(ctx: OperationContext, input: AbandonEx
       confidence: 'medium' as const,
       source: `Abandoned exploration: ${(node as ExplorationNode).title}`,
       valid_until: null,
+      content: '', parent_id: null, pinned: false, sort_order: 0,
     };
     await ctx.nodes.insert(knowledge_created);
 

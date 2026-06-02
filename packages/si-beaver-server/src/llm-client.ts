@@ -20,6 +20,7 @@ export interface ChatMessage {
 
 export interface LlmResponse {
   content: string;
+  reasoning?: string;
   usage?: { prompt_tokens: number; completion_tokens: number };
 }
 
@@ -31,8 +32,10 @@ export async function chatCompletion(messages: ChatMessage[], options?: { model?
   });
 
   const choice = res.choices[0];
+  const msg = choice?.message as any;
   return {
-    content: choice?.message?.content ?? "",
+    content: msg?.content ?? "",
+    reasoning: msg?.reasoning_content || undefined,
     usage: res.usage ? { prompt_tokens: res.usage.prompt_tokens, completion_tokens: res.usage.completion_tokens } : undefined,
   };
 }

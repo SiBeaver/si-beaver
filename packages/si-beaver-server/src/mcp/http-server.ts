@@ -39,7 +39,7 @@ async function createServerForSlug(manager: ProjectManager, slug: string): Promi
 // Session management
 // ============================================================
 
-const SESSION_IDLE_TTL = 30_000; // 30s grace period after transport close before session is deleted
+const SESSION_IDLE_TTL = 600_000; // 10 minutes grace period after transport close
 
 interface SessionEntry {
   transport: StreamableHTTPServerTransport;
@@ -94,6 +94,11 @@ export async function handleMcpRequest(
     if (sessionId && sessions.has(sessionId)) {
       entry = sessions.get(sessionId)!;
       clearSessionTimer(entry);
+    } else if (sessionId) {
+      // Session expired or unknown — return 404 per MCP spec so client re-initializes
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Session not found', code: 'SESSION_EXPIRED' }));
+      return true;
     } else if (!sessionId && req.method === 'POST') {
       let server = await createServerForSlug(manager, slug);
       const degraded = !server;
@@ -113,8 +118,9 @@ export async function handleMcpRequest(
       entry = { transport, slug, degraded };
       isNewSession = true;
     } else {
+      // GET without session ID — invalid request
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Missing or invalid session' }));
+      res.end(JSON.stringify({ error: 'Missing session ID' }));
       return true;
     }
 

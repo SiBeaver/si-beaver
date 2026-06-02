@@ -1,4 +1,4 @@
-import type { ProjectMeta } from '../lib/types';
+import type { ProjectMeta, CognitiveNode } from '../lib/types';
 import { getToken, clearToken } from '../lib/auth';
 
 function authHeaders(): Record<string, string> {
@@ -99,6 +99,32 @@ export function fetchKnowledgeMap(slug: string, domain?: string) {
   return get<KnowledgeMapResponse>(`/api/v1/projects/${slug}/knowledge${params}`);
 }
 
+export interface KnowledgeTreeNode {
+  id: string;
+  title: string;
+  domain: string;
+  description: string;
+  content: string;
+  status: string;
+  confidence: string;
+  pinned: boolean;
+  sort_order: number;
+  parent_id: string | null;
+  children: KnowledgeTreeNode[];
+  tags: string[];
+  updated_at: string;
+  source: string;
+}
+
+export interface KnowledgeTreeResponse {
+  tree: KnowledgeTreeNode[];
+  total: number;
+}
+
+export function fetchKnowledgeTree(slug: string) {
+  return get<KnowledgeTreeResponse>(`/api/v1/projects/${slug}/knowledge/tree`);
+}
+
 export function fetchActivity(slug: string, limit = 50) {
   return get<ActivityResponse>(`/api/v1/projects/${slug}/activity?limit=${limit}`);
 }
@@ -109,4 +135,38 @@ export function fetchFullTextSearch(slug: string, query: string) {
 
 export function fetchNodeContext(slug: string, nodeId: string) {
   return get<NodeContext>(`/api/v1/projects/${slug}/nodes/${nodeId}`);
+}
+
+// --- Knowledge operations ---
+
+export interface DistillResponse {
+  created: CognitiveNode[];
+  summary: string;
+}
+
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface KnowledgeChatResponse {
+  reply: string;
+  reasoning: string | null;
+  saved: CognitiveNode[];
+}
+
+export function distillKnowledge(slug: string, text: string, domain?: string, source?: string) {
+  return post<DistillResponse>(`/api/v1/projects/${slug}/knowledge/distill`, { text, domain, source });
+}
+
+export function knowledgeChat(slug: string, messages: ChatMessage[], action?: 'chat' | 'save') {
+  return post<KnowledgeChatResponse>(`/api/v1/projects/${slug}/knowledge/chat`, { messages, action });
+}
+
+export function executeOperation(slug: string, operation: string, input: Record<string, unknown>) {
+  return post<unknown>(`/api/v1/projects/${slug}/operations/${operation}`, input);
+}
+
+export function deleteNode(slug: string, nodeId: string) {
+  return post<unknown>(`/api/v1/projects/${slug}/operations/delete-node`, { node_id: nodeId });
 }

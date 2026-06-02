@@ -5,7 +5,7 @@ export { recordDecision } from './decisions.js';
 export { createTask, updateTaskStatus, backfillTask } from './tasks.js';
 export { defineRequirement, updateRequirementStatus } from './requirements.js';
 export { identifyRisk, updateRisk, registerTechDebt } from './risks.js';
-export { recordKnowledge } from './knowledge.js';
+export { recordKnowledge, updateKnowledge, getKnowledgeTree, pinKnowledge, moveKnowledge } from './knowledge.js';
 export { linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext } from './graph.js';
 export { batchOperations, type BatchOperationsInput, type OperationHandlerMap } from './batch.js';
 export {

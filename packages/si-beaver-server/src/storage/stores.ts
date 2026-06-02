@@ -44,22 +44,25 @@ export class NodeStore {
   constructor(private sql: Sql, private projectId: string) {}
 
   async insert(node: CognitiveNode): Promise<void> {
-    const { id, type, title, description, status, tags, created_at, updated_at, metadata, ...data } = node as any;
+    const { id, type, title, description, status, tags, created_at, updated_at, metadata, content, parent_id, pinned, sort_order, ...data } = node as any;
     await this.sql`
-      INSERT INTO nodes (id, project_id, type, title, description, status, tags, created_at, updated_at, metadata, data)
+      INSERT INTO nodes (id, project_id, type, title, description, status, tags, created_at, updated_at, metadata, data, content, parent_id, pinned, sort_order)
       VALUES (${id}, ${this.projectId}, ${type}, ${title ?? ''}, ${description ?? ''}, ${status},
               ${JSON.stringify(tags ?? [])}, ${created_at}, ${updated_at},
-              ${JSON.stringify(metadata ?? {})}, ${JSON.stringify(data)})
+              ${JSON.stringify(metadata ?? {})}, ${JSON.stringify(data)},
+              ${content ?? ''}, ${parent_id ?? null}, ${pinned ?? false}, ${sort_order ?? 0})
     `;
   }
 
   async update(node: CognitiveNode): Promise<void> {
-    const { id, type, title, description, status, tags, created_at, updated_at, metadata, ...data } = node as any;
+    const { id, type, title, description, status, tags, created_at, updated_at, metadata, content, parent_id, pinned, sort_order, ...data } = node as any;
     await this.sql`
       UPDATE nodes SET
         title = ${title ?? ''}, description = ${description ?? ''}, status = ${status},
         tags = ${JSON.stringify(tags ?? [])}, updated_at = ${updated_at},
         metadata = ${JSON.stringify(metadata ?? {})}, data = ${JSON.stringify(data)},
+        content = ${content ?? ''}, parent_id = ${parent_id ?? null},
+        pinned = ${pinned ?? false}, sort_order = ${sort_order ?? 0},
         embedding = NULL
       WHERE id = ${id} AND project_id = ${this.projectId}
     `;
@@ -102,6 +105,46 @@ export class NodeStore {
       ORDER BY ts_rank(search_vector, to_tsquery('simple', ${tsquery})) DESC
     `;
     return rows.map(rowToNode);
+  }
+
+  // ---- Knowledge tree methods ----
+
+  async getKnowledgeTree(): Promise<CognitiveNode[]> {
+    const rows = await this.sql`
+      SELECT * FROM nodes
+      WHERE project_id = ${this.projectId} AND type = 'knowledge'
+      ORDER BY pinned DESC, sort_order ASC, created_at ASC
+    `;
+    return rows.map(rowToNode);
+  }
+
+  async getChildren(parentId: string | null): Promise<CognitiveNode[]> {
+    const rows = parentId
+      ? await this.sql`
+          SELECT * FROM nodes
+          WHERE project_id = ${this.projectId} AND parent_id = ${parentId}
+          ORDER BY sort_order ASC, created_at ASC
+        `
+      : await this.sql`
+          SELECT * FROM nodes
+          WHERE project_id = ${this.projectId} AND parent_id IS NULL AND type = 'knowledge'
+          ORDER BY pinned DESC, sort_order ASC, created_at ASC
+        `;
+    return rows.map(rowToNode);
+  }
+
+  async updateParent(id: string, parentId: string | null, sortOrder?: number): Promise<void> {
+    await this.sql`
+      UPDATE nodes SET parent_id = ${parentId}, sort_order = ${sortOrder ?? 0}, updated_at = ${new Date().toISOString()}
+      WHERE id = ${id} AND project_id = ${this.projectId}
+    `;
+  }
+
+  async updatePinned(id: string, pinned: boolean): Promise<void> {
+    await this.sql`
+      UPDATE nodes SET pinned = ${pinned}, updated_at = ${new Date().toISOString()}
+      WHERE id = ${id} AND project_id = ${this.projectId}
+    `;
   }
 
   // ---- Embedding methods ----

@@ -157,6 +157,10 @@ export const KnowledgeNode = BaseNode.extend({
   confidence: z.enum(['low', 'medium', 'high']),
   source: z.string(),
   valid_until: z.string().nullable().default(null),
+  content: z.string().default(''),
+  parent_id: z.string().nullable().default(null),
+  pinned: z.boolean().default(false),
+  sort_order: z.number().default(0),
 });
 export type KnowledgeNode = z.infer<typeof KnowledgeNode>;
 

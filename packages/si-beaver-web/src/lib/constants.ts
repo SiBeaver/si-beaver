@@ -1,11 +1,10 @@
 import type { CognitiveNode } from './types';
 
-export type Tab = 'what' | 'design' | 'goals' | 'tasks' | 'requirements' | 'howto';
-export type LegacyTab = 'overview' | 'roadmap' | 'knowledge' | 'risks' | 'activity';
+export type Tab = 'what' | 'design' | 'goals' | 'tasks' | 'requirements' | 'knowledge' | 'howto';
+export type LegacyTab = 'overview' | 'roadmap' | 'risks' | 'activity';
 export const LEGACY_TO_NEW: Record<LegacyTab, Tab> = {
   overview: 'what',
   roadmap: 'goals',
-  knowledge: 'what',
   risks: 'tasks',
   activity: 'what',
 };

@@ -13,6 +13,9 @@ export interface RecordKnowledgeInput {
   domain: string;
   confidence?: 'low' | 'medium' | 'high';
   source: string;
+  content?: string;
+  parent_id?: string | null;
+  pinned?: boolean;
   derived_from?: string[];
   invalidates?: string[];
   tags?: string[];
@@ -34,13 +37,16 @@ export async function recordKnowledge(ctx: OperationContext, input: RecordKnowle
     confidence: input.confidence ?? 'medium',
     source: input.source,
     valid_until: null,
+    content: input.content ?? '',
+    parent_id: input.parent_id ?? null,
+    pinned: input.pinned ?? false,
+    sort_order: 0,
   };
 
   await ctx.nodes.insert(knowledge);
   const edges_created: Edge[] = [];
   const invalidated_nodes: KnowledgeNode[] = [];
 
-  // 来源关系
   for (const fromId of input.derived_from ?? []) {
     const edge: Edge = {
       id: ulid(), source_id: fromId, target_id: knowledge.id,
@@ -50,7 +56,6 @@ export async function recordKnowledge(ctx: OperationContext, input: RecordKnowle
     edges_created.push(edge);
   }
 
-  // 取代旧知识
   for (const oldId of input.invalidates ?? []) {
     const oldNode = await ctx.nodes.getById(oldId);
     if (oldNode && oldNode.type === 'knowledge') {
@@ -76,4 +81,128 @@ export async function recordKnowledge(ctx: OperationContext, input: RecordKnowle
   });
 
   return { knowledge, invalidated_nodes, edges_created, event };
+}
+
+// ============================================================
+// update_knowledge — 更新知识
+// ============================================================
+
+export interface UpdateKnowledgeInput {
+  knowledge_id: string;
+  title?: string;
+  description?: string;
+  content?: string;
+  domain?: string;
+  confidence?: 'low' | 'medium' | 'high';
+  status?: 'tentative' | 'established' | 'outdated';
+  tags?: string[];
+  parent_id?: string | null;
+}
+
+export async function updateKnowledge(ctx: OperationContext, input: UpdateKnowledgeInput) {
+  const node = await ctx.nodes.getById(input.knowledge_id);
+  if (!node || node.type !== 'knowledge') {
+    throw new Error(`Knowledge node ${input.knowledge_id} not found`);
+  }
+
+  const now = new Date().toISOString();
+  const updated: KnowledgeNode = {
+    ...(node as KnowledgeNode),
+    title: input.title ?? node.title,
+    description: input.description ?? node.description,
+    content: input.content ?? (node as any).content ?? '',
+    domain: input.domain ?? (node as KnowledgeNode).domain,
+    confidence: input.confidence ?? (node as KnowledgeNode).confidence,
+    status: input.status ?? node.status as any,
+    tags: input.tags ?? node.tags,
+    parent_id: input.parent_id !== undefined ? input.parent_id : (node as any).parent_id ?? null,
+    updated_at: now,
+  };
+
+  await ctx.nodes.update(updated);
+
+  const event = await ctx.events.emit({
+    event_type: 'knowledge.recorded',
+    operation: 'update_knowledge',
+    node_id: updated.id,
+    node_type: 'knowledge',
+    payload: { title: updated.title, domain: updated.domain },
+  });
+
+  return { knowledge: updated, event };
+}
+
+// ============================================================
+// knowledge tree operations
+// ============================================================
+
+export interface KnowledgeTreeNode {
+  id: string;
+  title: string;
+  domain: string;
+  description: string;
+  content: string;
+  status: string;
+  confidence: string;
+  pinned: boolean;
+  sort_order: number;
+  parent_id: string | null;
+  children: KnowledgeTreeNode[];
+  tags: string[];
+  updated_at: string;
+  source: string;
+}
+
+export async function getKnowledgeTree(ctx: OperationContext) {
+  const allNodes = await ctx.nodes.getKnowledgeTree();
+
+  const nodeMap = new Map<string, KnowledgeTreeNode>();
+  const roots: KnowledgeTreeNode[] = [];
+
+  for (const n of allNodes) {
+    const kn = n as KnowledgeNode;
+    nodeMap.set(n.id, {
+      id: n.id,
+      title: n.title,
+      domain: kn.domain,
+      description: n.description,
+      content: kn.content || '',
+      status: n.status,
+      confidence: kn.confidence,
+      pinned: kn.pinned,
+      sort_order: kn.sort_order,
+      parent_id: kn.parent_id,
+      children: [],
+      tags: n.tags,
+      updated_at: n.updated_at,
+      source: kn.source,
+    });
+  }
+
+  for (const tn of nodeMap.values()) {
+    if (tn.parent_id && nodeMap.has(tn.parent_id)) {
+      nodeMap.get(tn.parent_id)!.children.push(tn);
+    } else {
+      roots.push(tn);
+    }
+  }
+
+  return { tree: roots, total: allNodes.length };
+}
+
+export async function pinKnowledge(ctx: OperationContext, input: { knowledge_id: string; pinned: boolean }) {
+  const node = await ctx.nodes.getById(input.knowledge_id);
+  if (!node || node.type !== 'knowledge') throw new Error('Knowledge node not found');
+  await ctx.nodes.updatePinned(input.knowledge_id, input.pinned);
+  return { id: input.knowledge_id, pinned: input.pinned };
+}
+
+export async function moveKnowledge(ctx: OperationContext, input: { knowledge_id: string; parent_id: string | null; sort_order?: number }) {
+  const node = await ctx.nodes.getById(input.knowledge_id);
+  if (!node || node.type !== 'knowledge') throw new Error('Knowledge node not found');
+  if ((node as KnowledgeNode).pinned && input.parent_id !== (node as any).parent_id) {
+    throw new Error('Cannot move a pinned knowledge node. Unpin it first.');
+  }
+  await ctx.nodes.updateParent(input.knowledge_id, input.parent_id, input.sort_order);
+  return { id: input.knowledge_id, parent_id: input.parent_id };
 }

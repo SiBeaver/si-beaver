@@ -6,6 +6,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { resolve } from 'path';
 import { existsSync } from 'fs';
 import { handleMcpRequest } from '../mcp/http-server.js';
+import { chatCompletion, jsonCompletion, type ChatMessage } from '../llm-client.js';
 import type { OperationContext, BatchOperationsInput } from '../index.js';
 import {
   defineGoal, decomposeGoal, updateGoalStatus,
@@ -14,7 +15,7 @@ import {
   createTask, updateTaskStatus, backfillTask,
   defineRequirement, updateRequirementStatus,
   identifyRisk, updateRisk, registerTechDebt,
-  recordKnowledge,
+  recordKnowledge, updateKnowledge, getKnowledgeTree, pinKnowledge, moveKnowledge,
   linkNodes, deleteNode, getProjectState, getNodeContext, getTaskContext,
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
@@ -47,6 +48,9 @@ export const operationHandlers: Record<string, (ctx: OperationContext, input: an
   update_risk: updateRisk,
   register_tech_debt: registerTechDebt,
   record_knowledge: recordKnowledge,
+  update_knowledge: updateKnowledge,
+  pin_knowledge: pinKnowledge,
+  move_knowledge: moveKnowledge,
   link_nodes: linkNodes,
   delete_node: deleteNode,
   generate_projection: generateProjection,
@@ -226,6 +230,11 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     return json(c, await knowledgeMap(getCtx(slug), domain || undefined));
   });
 
+  app.get('/api/v1/projects/:slug/knowledge/tree', async (c) => {
+    const slug = c.req.param('slug');
+    return json(c, await getKnowledgeTree(getCtx(slug)));
+  });
+
   app.get('/api/v1/projects/:slug/stale', async (c) => {
     const slug = c.req.param('slug');
     const days = c.req.query('days');
@@ -281,6 +290,222 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     const q = c.req.query('q');
     if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
     return json(c, await fullTextSearch(getCtx(slug), q));
+  });
+
+  // === 知识蒸馏 & 对话 ===
+
+  app.post('/api/v1/projects/:slug/knowledge/distill', async (c) => {
+    const slug = c.req.param('slug');
+    const body = await c.req.json();
+    const { text, domain, source } = body as { text: string; domain?: string; source?: string };
+    if (!text) return json(c, { error: 'Missing "text" field' }, 400);
+
+    const ctx = getCtx(slug);
+    const treeResult = await getKnowledgeTree(ctx);
+    const anchors = treeResult.tree.filter((n: any) => n.pinned);
+    const anchorSummary = anchors.map((a: any) =>
+      `- id="${a.id}" title="${a.title}" domain="${a.domain}" (子项: ${a.children.length})`
+    ).join('\n');
+    const existingFlat = treeResult.tree.flatMap((n: any) => {
+      const items = [{ id: n.id, title: n.title, domain: n.domain }];
+      for (const ch of n.children) items.push({ id: ch.id, title: ch.title, domain: ch.domain });
+      return items;
+    });
+    const existingSummary = existingFlat.slice(0, 40)
+      .map((k: any) => `- id="${k.id}" [${k.domain}] ${k.title}`).join('\n');
+
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: `你是一个 AI-first 知识库工程师。用户提供零散文本，你需要决定如何将其整合到知识库中。
+
+## 当前知识库锚点（顶层主题，人工设定，不可移动）：
+${anchorSummary || '（暂无锚点）'}
+
+## 已有知识条目：
+${existingSummary || '（暂无）'}
+
+## 你的决策
+
+对于提取的每个知识点，你必须决定 action：
+- "create": 创建全新条目
+- "update": 更新已有条目（提供 target_id）
+- "merge": 将多个已有条目合并为一个新条目（提供 merge_ids）
+
+## 输出 JSON 格式：
+{
+  "actions": [
+    {
+      "action": "create",
+      "title": "简洁标题",
+      "description": "一句话摘要",
+      "content": "详细内容（markdown）",
+      "domain": "领域",
+      "confidence": "low|medium|high",
+      "parent_id": "父节点ID（匹配锚点或已有条目）或 null",
+      "tags": []
+    },
+    {
+      "action": "update",
+      "target_id": "要更新的条目ID",
+      "title": "更新后标题（可选）",
+      "description": "更新后摘要（可选）",
+      "content": "更新后详细内容（可选）",
+      "domain": "领域（可选）"
+    },
+    {
+      "action": "merge",
+      "merge_ids": ["id1", "id2"],
+      "title": "合并后标题",
+      "description": "合并后摘要",
+      "content": "合并后详细内容",
+      "domain": "领域",
+      "parent_id": "父节点ID 或 null"
+    }
+  ],
+  "summary": "简要说明做了什么操作"
+}
+
+## 规则：
+- 优先更新已有条目而非创建重复条目
+- 如果多个碎片讨论同一主题，考虑合并
+- parent_id 优先匹配锚点，无合适锚点时设为 null
+- content 使用 markdown 格式，可以较长
+- 如果文本无实质知识内容，返回空 actions 数组`,
+      },
+      { role: 'user', content: text },
+    ];
+
+    interface DistillAction {
+      action: 'create' | 'update' | 'merge';
+      target_id?: string;
+      merge_ids?: string[];
+      title?: string;
+      description?: string;
+      content?: string;
+      domain?: string;
+      confidence?: 'low' | 'medium' | 'high';
+      parent_id?: string | null;
+      tags?: string[];
+    }
+    interface DistillResult { actions: DistillAction[]; summary: string; }
+
+    try {
+      const result = await jsonCompletion<DistillResult>(messages);
+      const created: any[] = [];
+      const updated: any[] = [];
+      const merged: any[] = [];
+
+      for (const act of result.actions) {
+        if (act.action === 'create') {
+          const res = await recordKnowledge(ctx, {
+            title: act.title!,
+            description: act.description || '',
+            content: act.content || '',
+            domain: act.domain || domain || 'general',
+            confidence: act.confidence || 'medium',
+            source: source || 'distill',
+            parent_id: act.parent_id,
+            tags: act.tags,
+          });
+          created.push(res.knowledge);
+        } else if (act.action === 'update' && act.target_id) {
+          const res = await updateKnowledge(ctx, {
+            knowledge_id: act.target_id,
+            title: act.title,
+            description: act.description,
+            content: act.content,
+            domain: act.domain,
+          });
+          updated.push(res.knowledge);
+        } else if (act.action === 'merge' && act.merge_ids?.length) {
+          const res = await recordKnowledge(ctx, {
+            title: act.title!,
+            description: act.description || '',
+            content: act.content || '',
+            domain: act.domain || domain || 'general',
+            confidence: act.confidence || 'medium',
+            source: source || 'distill-merge',
+            parent_id: act.parent_id,
+            invalidates: act.merge_ids,
+            tags: act.tags,
+          });
+          merged.push(res.knowledge);
+        }
+      }
+
+      return json(c, { created, updated, merged, summary: result.summary });
+    } catch (e: any) {
+      return json(c, { error: e.message }, 500);
+    }
+  });
+
+  app.post('/api/v1/projects/:slug/knowledge/chat', async (c) => {
+    const slug = c.req.param('slug');
+    const body = await c.req.json();
+    const { messages: userMessages, action } = body as {
+      messages: ChatMessage[];
+      action?: 'chat' | 'save';
+    };
+    if (!userMessages || !Array.isArray(userMessages)) {
+      return json(c, { error: 'Missing "messages" array' }, 400);
+    }
+
+    const ctx = getCtx(slug);
+    const existing = await knowledgeMap(ctx);
+    const existingSummary = (existing.knowledge || []).slice(0, 30)
+      .map((k: any) => `- [${k.domain}] ${k.title}: ${k.description?.slice(0, 60) || ''}`).join('\n');
+
+    const systemMsg: ChatMessage = {
+      role: 'system',
+      content: `你是一个知识管理助手，帮助用户整理和归纳项目知识。
+
+当前知识库概览：
+${existingSummary || '（暂无）'}
+
+你可以：
+1. 回答用户关于现有知识的问题
+2. 帮助用户把零散想法整理为结构化知识
+3. 当用户确认要保存时，输出以下 JSON 格式（用 \`\`\`json 包裹）：
+\`\`\`json
+{"save": [{"title": "...", "description": "...", "domain": "...", "confidence": "medium", "tags": []}]}
+\`\`\`
+
+在普通对话中不要输出 JSON，只在用户明确说"保存"、"记录"、"存入知识库"时才输出。`,
+    };
+
+    const fullMessages = [systemMsg, ...userMessages];
+
+    try {
+      const llmRes = await chatCompletion(fullMessages);
+      let saved: any[] = [];
+
+      if (action === 'save' || llmRes.content.includes('"save"')) {
+        const jsonMatch = llmRes.content.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[1]);
+            if (parsed.save && Array.isArray(parsed.save)) {
+              for (const item of parsed.save) {
+                const res = await recordKnowledge(ctx, {
+                  title: item.title,
+                  description: item.description,
+                  domain: item.domain || 'general',
+                  confidence: item.confidence || 'medium',
+                  source: item.source || 'chat',
+                  tags: item.tags,
+                });
+                saved.push(res.knowledge);
+              }
+            }
+          } catch { /* JSON parse failed, just return the message */ }
+        }
+      }
+
+      return json(c, { reply: llmRes.content, reasoning: llmRes.reasoning || null, saved });
+    } catch (e: any) {
+      return json(c, { error: e.message }, 500);
+    }
   });
 
   // === 项目级写操作 ===
