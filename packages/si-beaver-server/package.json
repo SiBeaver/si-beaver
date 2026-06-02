@@ -1,7 +1,7 @@
 {
   "name": "@si-beaver/server",
   "version": "0.2.0",
-  "description": "AI-native cognitive engine — REST API, MCP, workflow engine, SIBS client",
+  "description": "AI-native cognitive engine — REST API, MCP, SIBS client",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
