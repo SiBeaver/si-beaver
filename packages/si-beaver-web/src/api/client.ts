@@ -207,3 +207,50 @@ export interface HelmResponse {
 export function fetchHelmSignals(slug: string) {
   return get<HelmResponse>(`/${slug}/api/v1/helm`);
 }
+
+// --- Dashboard view data ---
+
+import type { EventRecord } from '../lib/types';
+
+export interface ActivityResponse {
+  events: EventRecord[];
+}
+
+export function fetchActivity(slug: string, limit = 20) {
+  return get<ActivityResponse>(`/${slug}/api/v1/activity?limit=${limit}`);
+}
+
+export interface GoalProgressItem {
+  goal: import('../lib/types').CognitiveNode;
+  total: number;
+  done: number;
+  percentage: number;
+}
+
+export interface GoalProgressResponse {
+  goals: GoalProgressItem[];
+}
+
+export function fetchGoalProgress(slug: string) {
+  return get<GoalProgressResponse>(`/${slug}/api/v1/goals/progress`);
+}
+
+export interface StaleItemsResponse {
+  staleItems: import('../lib/types').CognitiveNode[];
+  cutoffDate: string;
+  days: number;
+}
+
+export function fetchStaleItems(slug: string, days = 7) {
+  return get<StaleItemsResponse>(`/${slug}/api/v1/stale?days=${days}`);
+}
+
+export interface KnowledgeMapResponse {
+  knowledge: import('../lib/types').CognitiveNode[];
+  byDomain: Record<string, import('../lib/types').CognitiveNode[]>;
+}
+
+export function fetchKnowledgeMap(slug: string, domain?: string) {
+  const params = domain ? `?domain=${encodeURIComponent(domain)}` : '';
+  return get<KnowledgeMapResponse>(`/${slug}/api/v1/knowledge${params}`);
+}
