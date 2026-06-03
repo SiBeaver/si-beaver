@@ -183,3 +183,27 @@ export interface CockpitViewResponse {
 export function fetchCockpitView(slug: string) {
   return get<CockpitViewResponse>(`/api/v1/projects/${slug}/cockpit-view`);
 }
+
+// --- Helm signals ---
+
+export type HelmSignalType = 'proposed_requirement' | 'revision_needed' | 'knowledge_conflict' | 'blocker' | 'stale' | 'goal_review';
+
+export interface HelmSignal {
+  id: string;
+  type: HelmSignalType;
+  urgency: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  summary: string;
+  node: import('../lib/types').CognitiveNode;
+  context: { nodes: import('../lib/types').CognitiveNode[]; edges: any[] };
+  timestamp: string;
+}
+
+export interface HelmResponse {
+  signals: HelmSignal[];
+  counts: Record<string, number>;
+}
+
+export function fetchHelmSignals(slug: string) {
+  return get<HelmResponse>(`/api/v1/projects/${slug}/helm`);
+}

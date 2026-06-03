@@ -19,6 +19,7 @@ import {
   linkNodes, deleteNode, getProjectState, getNodeContext,
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
+  getHelmSignals,
   batchOperations,
   generateProjection, listProjectionTypes,
 } from '../index.js';
@@ -273,6 +274,11 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
   app.get('/api/v1/projects/:slug/blockers', async (c) => {
     const slug = c.req.param('slug');
     return json(c, await currentBlockers(getCtx(slug)));
+  });
+
+  app.get('/api/v1/projects/:slug/helm', async (c) => {
+    const slug = c.req.param('slug');
+    return json(c, await getHelmSignals(getCtx(slug)));
   });
 
   app.get('/api/v1/projects/:slug/projections', async (c) => {

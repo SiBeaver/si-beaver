@@ -1,51 +1,32 @@
-import { useState, useEffect, createElement } from 'react';
+import { useState, createElement } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout, Menu, Typography, Button, theme } from 'antd';
 import {
-  InfoCircleOutlined,
-  BuildOutlined,
-  FlagOutlined,
-  FileTextOutlined,
-  QuestionCircleOutlined,
   ReloadOutlined,
   ArrowLeftOutlined,
   LogoutOutlined,
-  BookOutlined,
-  AppstoreOutlined,
-  DashboardOutlined,
+  CompassOutlined,
+  MessageOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 import { useSWRConfig } from 'swr';
 import { CockpitView } from '../components/cockpit/CockpitView';
-import { WhatView } from '../components/what/WhatView';
-import { DesignView } from '../components/design/DesignView';
-import { GoalsView } from '../components/goals/GoalsView';
-import { RequirementsView } from '../components/requirements/RequirementsView';
-import { KnowledgeBaseView } from '../components/knowledge/KnowledgeBaseView';
-import { HowtoView } from '../components/howto/HowtoView';
-import { CapabilitiesView } from '../components/capabilities/CapabilitiesView';
+import { HelmView } from '../components/helm/HelmView';
+import { ChatPanel } from '../components/chat/ChatPanel';
 import { clearToken } from '../lib/auth';
-import { LEGACY_TO_NEW } from '../lib/constants';
-import type { LegacyTab } from '../lib/constants';
 import { getPlugins } from '../plugin/registry';
 import type { TabPlugin } from '../plugin/types';
 
 const { Sider, Content } = Layout;
 
 const BASE_TABS: (TabPlugin & { builtin: true })[] = [
-  { key: 'cockpit', label: '驾驶舱', icon: DashboardOutlined, component: CockpitView, builtin: true },
-  { key: 'what', label: '是什么', icon: InfoCircleOutlined, component: WhatView, builtin: true },
-  { key: 'design', label: '设计', icon: BuildOutlined, component: DesignView, builtin: true },
-  { key: 'goals', label: '目标', icon: FlagOutlined, component: GoalsView, builtin: true },
-  { key: 'requirements', label: '需求', icon: FileTextOutlined, component: RequirementsView, builtin: true },
-  { key: 'capabilities', label: '交付', icon: AppstoreOutlined, component: CapabilitiesView, builtin: true },
-  { key: 'knowledge', label: '知识库', icon: BookOutlined, component: KnowledgeBaseView, builtin: true },
-  { key: 'howto', label: '怎么用', icon: QuestionCircleOutlined, component: HowtoView, builtin: true },
+  { key: 'cockpit', label: '地图', icon: GlobalOutlined, component: CockpitView, builtin: true },
+  { key: 'helm', label: '方向舵', icon: CompassOutlined, component: HelmView, builtin: true },
 ];
 
 function getAllTabs(): TabPlugin[] {
   const plugins = getPlugins();
   const pluginKeys = new Set(plugins.map(p => p.key));
-  // base tabs first, then plugins, skip plugins that override base keys
   const baseFiltered = BASE_TABS.filter(t => !pluginKeys.has(t.key));
   return [...baseFiltered, ...plugins];
 }
@@ -57,17 +38,11 @@ export function ProjectDetailPage() {
   const navigate = useNavigate();
   const { mutate } = useSWRConfig();
   const [spinning, setSpinning] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const { token } = theme.useToken();
 
   const tabMap = new Map(allTabs.map(t => [t.key, t]));
   const activePlugin = tabMap.get(activeTab);
-
-  useEffect(() => {
-    const legacy = LEGACY_TO_NEW[tab as LegacyTab];
-    if (legacy) {
-      navigate(`/projects/${slug}/${legacy}`, { replace: true });
-    }
-  }, [tab, slug, navigate]);
 
   const handleRefresh = () => {
     setSpinning(true);
@@ -131,6 +106,24 @@ export function ProjectDetailPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            marginBottom: 12,
+            cursor: 'pointer',
+            color: chatOpen ? token.colorPrimary : token.colorTextSecondary,
+            background: chatOpen ? token.colorPrimaryBg : undefined,
+          }}
+          onClick={() => setChatOpen(!chatOpen)}
+          title="对话"
+        >
+          <MessageOutlined style={{ fontSize: 16 }} />
+        </div>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             marginBottom: 20,
             cursor: 'pointer',
             color: token.colorTextSecondary,
@@ -158,9 +151,26 @@ export function ProjectDetailPage() {
             onClick={handleRefresh}
           />
         </div>
-        <Content style={{ padding: 32, overflow: 'auto' }}>
-          {activePlugin && <activePlugin.component slug={slug!} />}
-        </Content>
+        <Layout style={{ background: token.colorBgLayout }}>
+          <Content style={{ padding: 32, overflow: 'auto' }}>
+            {activePlugin && <activePlugin.component slug={slug!} />}
+          </Content>
+          {chatOpen && (
+            <Sider
+              width={360}
+              style={{
+                background: token.colorBgContainer,
+                borderLeft: `1px solid ${token.colorBorderSecondary}`,
+                padding: 16,
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <Typography.Text strong style={{ marginBottom: 12, display: 'block' }}>对话</Typography.Text>
+              <ChatPanel slug={slug!} />
+            </Sider>
+          )}
+        </Layout>
       </Layout>
     </Layout>
   );

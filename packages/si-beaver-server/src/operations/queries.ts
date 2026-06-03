@@ -1,5 +1,6 @@
 import type { OperationContext } from './context.js';
 import type { CognitiveNode, GoalNode } from '../nodes/types.js';
+import type { Edge } from '../edges/types.js';
 
 // ============================================================
 // get_roadmap — 获取目标路线图（树状结构）
@@ -248,4 +249,169 @@ export async function fullTextSearch(ctx: OperationContext, query: string) {
     .filter(n => !STALE_STATUSES.includes(n.status))
     .sort((a, b) => sortScore(b) - sortScore(a));
   return { query, results, count: results.length };
+}
+
+// ============================================================
+// helm_signals — 聚合需要人类转向的力矩
+// ============================================================
+
+export type HelmSignalType = 'proposed_requirement' | 'revision_needed' | 'knowledge_conflict' | 'blocker' | 'stale' | 'goal_review';
+
+export interface HelmSignal {
+  id: string;
+  type: HelmSignalType;
+  urgency: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  summary: string;
+  node: CognitiveNode;
+  context: { nodes: CognitiveNode[]; edges: Edge[] };
+  timestamp: string;
+}
+
+export interface HelmResponse {
+  signals: HelmSignal[];
+  counts: Record<string, number>;
+}
+
+const URGENCY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+
+function priorityToUrgency(priority?: string): HelmSignal['urgency'] {
+  if (priority === 'critical') return 'critical';
+  if (priority === 'high') return 'high';
+  if (priority === 'medium') return 'medium';
+  return 'low';
+}
+
+export async function getHelmSignals(ctx: OperationContext): Promise<HelmResponse> {
+  const signals: HelmSignal[] = [];
+
+  const proposed = await ctx.nodes.getByTypeAndStatus('requirement', 'proposed');
+  for (const node of proposed) {
+    signals.push({
+      id: `proposed-${node.id}`,
+      type: 'proposed_requirement',
+      urgency: priorityToUrgency((node as any).priority),
+      title: node.title,
+      summary: '待精炼需求，需要确认或驳回',
+      node,
+      context: { nodes: [], edges: [] },
+      timestamp: node.created_at,
+    });
+  }
+
+  const revisionNeeded = await ctx.nodes.getByTypeAndStatus('requirement', 'revision_needed');
+  for (const node of revisionNeeded) {
+    const inEdges = await ctx.edges.getByTarget(node.id);
+    const contradictEdges = inEdges.filter(e => e.relation === 'contradicts');
+    const contextNodes = (await Promise.all(
+      contradictEdges.map(e => ctx.nodes.getById(e.source_id))
+    )).filter(Boolean) as CognitiveNode[];
+
+    signals.push({
+      id: `revision-${node.id}`,
+      type: 'revision_needed',
+      urgency: 'high',
+      title: node.title,
+      summary: contextNodes.length > 0
+        ? `知识冲突：${contextNodes.map(n => n.title).join('、')}`
+        : '需要修订',
+      node,
+      context: { nodes: contextNodes, edges: contradictEdges },
+      timestamp: node.updated_at,
+    });
+
+    for (const kNode of contextNodes) {
+      const edge = contradictEdges.find(e => e.source_id === kNode.id)!;
+      signals.push({
+        id: `conflict-${edge.id}`,
+        type: 'knowledge_conflict',
+        urgency: 'critical',
+        title: `${kNode.title} ⇄ ${node.title}`,
+        summary: edge.annotation || '知识与需求冲突，需要裁决',
+        node: kNode,
+        context: { nodes: [node], edges: [edge] },
+        timestamp: edge.created_at,
+      });
+    }
+  }
+
+  const risks = (await ctx.nodes.getByType('risk')).filter(r => !['resolved', 'mitigated'].includes(r.status));
+  const techDebt = (await ctx.nodes.getByType('tech_debt')).filter(td => td.status !== 'resolved');
+  for (const item of [...risks, ...techDebt]) {
+    const edges = await ctx.edges.getBySource(item.id);
+    const blockingEdges = edges.filter(e => e.relation === 'blocks');
+    if (blockingEdges.length === 0) continue;
+    const blocked = (await Promise.all(
+      blockingEdges.map(e => ctx.nodes.getById(e.target_id))
+    )).filter(Boolean) as CognitiveNode[];
+
+    signals.push({
+      id: `blocker-${item.id}`,
+      type: 'blocker',
+      urgency: (item as any).severity === 'critical' ? 'critical' : 'high',
+      title: item.title,
+      summary: `阻塞：${blocked.map(n => n.title).join('、')}`,
+      node: item,
+      context: { nodes: blocked, edges: blockingEdges },
+      timestamp: item.updated_at,
+    });
+  }
+
+  const cutoff7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const cutoff14d = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const staleTypes = ['goal', 'exploration', 'risk', 'tech_debt'] as const;
+  const staleStatuses = ['active', 'proposed', 'identified', 'analyzing', 'accepted'];
+  for (const type of staleTypes) {
+    const nodes = await ctx.nodes.getByType(type);
+    for (const node of nodes) {
+      if (staleStatuses.includes(node.status) && node.updated_at < cutoff7d) {
+        signals.push({
+          id: `stale-${node.id}`,
+          type: 'stale',
+          urgency: node.updated_at < cutoff14d ? 'high' : 'medium',
+          title: node.title,
+          summary: `已停滞 ${Math.floor((Date.now() - new Date(node.updated_at).getTime()) / 86400000)} 天`,
+          node,
+          context: { nodes: [], edges: [] },
+          timestamp: node.updated_at,
+        });
+      }
+    }
+  }
+
+  const activeGoals = await ctx.nodes.getByTypeAndStatus('goal', 'active');
+  const cutoff3d = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+  for (const goal of activeGoals) {
+    const edges = await ctx.edges.getBySource(goal.id);
+    const decomposeEdges = edges.filter(e => e.relation === 'decomposes_into');
+    const children = (await Promise.all(
+      decomposeEdges.map(e => ctx.nodes.getById(e.target_id))
+    )).filter(Boolean) as CognitiveNode[];
+    const recentChildren = children.filter(c => c.created_at > cutoff3d);
+    if (recentChildren.length > 0) {
+      signals.push({
+        id: `goal-review-${goal.id}`,
+        type: 'goal_review',
+        urgency: 'medium',
+        title: goal.title,
+        summary: `AI 刚分解出 ${recentChildren.length} 个子项，请确认方向`,
+        node: goal,
+        context: { nodes: recentChildren, edges: decomposeEdges },
+        timestamp: recentChildren[0].created_at,
+      });
+    }
+  }
+
+  signals.sort((a, b) => {
+    const urgDiff = URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency];
+    if (urgDiff !== 0) return urgDiff;
+    return b.timestamp.localeCompare(a.timestamp);
+  });
+
+  const counts: Record<string, number> = {};
+  for (const s of signals) {
+    counts[s.type] = (counts[s.type] || 0) + 1;
+  }
+
+  return { signals, counts };
 }

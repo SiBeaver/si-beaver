@@ -11,5 +11,7 @@ export { batchOperations, type BatchOperationsInput, type OperationHandlerMap } 
 export {
   getRoadmap, goalProgress, decisionTrail, knowledgeMap,
   staleItems, currentBlockers, recentActivity, fullTextSearch,
+  getHelmSignals,
 } from './queries.js';
+export type { HelmSignal, HelmResponse, HelmSignalType } from './queries.js';
 export { generateProjection, listProjectionTypes } from './projections.js';
