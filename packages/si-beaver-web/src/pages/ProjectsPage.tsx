@@ -51,7 +51,7 @@ export function ProjectsPage() {
               <Col key={project.slug} xs={24} sm={12} lg={8}>
                 <Card
                   hoverable
-                  onClick={() => navigate(`/projects/${project.slug}`)}
+                  onClick={() => navigate(`/${project.slug}`)}
                   style={{ height: '100%' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>

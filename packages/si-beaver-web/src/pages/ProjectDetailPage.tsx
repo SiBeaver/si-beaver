@@ -81,7 +81,7 @@ export function ProjectDetailPage() {
             marginLeft: 18,
             cursor: 'pointer',
           }}
-          onClick={() => navigate('/projects')}
+          onClick={() => navigate('/')}
         >
           <ArrowLeftOutlined style={{ color: token.colorPrimary, fontSize: 14 }} />
         </div>
@@ -89,7 +89,7 @@ export function ProjectDetailPage() {
           mode="inline"
           inlineCollapsed
           selectedKeys={[activeTab]}
-          onSelect={({ key }) => navigate(`/projects/${slug}/${key}`)}
+          onSelect={({ key }) => navigate(`/${slug}/${key}`)}
           style={{ border: 'none', background: 'transparent' }}
           items={allTabs.map(t => ({
             key: t.key,

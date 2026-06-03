@@ -2,9 +2,6 @@ import { createServer } from 'node:http';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { getRequestListener } from '@hono/node-server';
-import { serveStatic } from '@hono/node-server/serve-static';
-import { resolve } from 'path';
-import { existsSync } from 'fs';
 import { handleMcpRequest } from '../mcp/http-server.js';
 import { chatCompletion, jsonCompletion, type ChatMessage } from '../llm-client.js';
 import type { OperationContext, BatchOperationsInput } from '../index.js';
@@ -68,22 +65,27 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
   app.get('/healthz', (c) => c.json({ status: 'ok' }));
 
   app.use('/api/*', cors());
+  app.use('/:project/api/*', cors());
 
   if (authToken) {
-    app.use('/api/*', async (c, next) => {
+    const authMw = async (c: any, next: any) => {
       const auth = c.req.header('Authorization');
       if (auth !== `Bearer ${authToken}`) {
         return c.json({ error: 'Unauthorized' }, 401);
       }
       await next();
-    });
+    };
+    app.use('/api/*', authMw);
+    app.use('/:project/api/*', authMw);
   }
 
-  app.use('/api/*', async (c, next) => {
+  const loggingMw = async (c: any, next: any) => {
     const start = Date.now();
     await next();
     console.log(`[API] ${c.req.method} ${c.req.path} ${c.res.status} ${Date.now() - start}ms`);
-  });
+  };
+  app.use('/api/*', loggingMw);
+  app.use('/:project/api/*', loggingMw);
 
   function json(c: any, data: unknown, status?: number) {
     return c.json(snakeToCamel(data), status);
@@ -139,10 +141,10 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     return c.body(null, 204);
   });
 
-  // === 项目级读操作 ===
+  // === 项目级读操作 (/:project/api/v1/...) ===
 
-  app.get('/api/v1/projects/:slug/state', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/state', async (c) => {
+    const slug = c.req.param('project');
     try {
       return json(c, await getProjectState(getCtx(slug)));
     } catch (e: any) {
@@ -150,16 +152,16 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     }
   });
 
-  app.get('/api/v1/projects/:slug/nodes', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/nodes', async (c) => {
+    const slug = c.req.param('project');
     const type = c.req.query('type');
     if (!type) return json(c, { error: 'Query parameter "type" is required' }, 400);
     const nodes = await getCtx(slug).nodes.getByType(type as any);
     return json(c, nodes);
   });
 
-  app.get('/api/v1/projects/:slug/nodes/:id', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/nodes/:id', async (c) => {
+    const slug = c.req.param('project');
     const nodeId = c.req.param('id');
     try {
       return json(c, await getNodeContext(getCtx(slug), nodeId));
@@ -168,15 +170,15 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     }
   });
 
-  app.get('/api/v1/projects/:slug/nodes/:id/history', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/nodes/:id/history', async (c) => {
+    const slug = c.req.param('project');
     const nodeId = c.req.param('id');
     const events = await getCtx(slug).eventStore.getByNode(nodeId);
     return json(c, events);
   });
 
-  app.get('/api/v1/projects/:slug/nodes/:id/trail', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/nodes/:id/trail', async (c) => {
+    const slug = c.req.param('project');
     const nodeId = c.req.param('id');
     try {
       return json(c, await decisionTrail(getCtx(slug), nodeId));
@@ -185,15 +187,15 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     }
   });
 
-  app.get('/api/v1/projects/:slug/search', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/search', async (c) => {
+    const slug = c.req.param('project');
     const q = c.req.query('q');
     if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
     return json(c, await getCtx(slug).nodes.search(q));
   });
 
-  app.get('/api/v1/projects/:slug/events', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/events', async (c) => {
+    const slug = c.req.param('project');
     const since = c.req.query('since');
     const limit = c.req.query('limit');
     const ctx = getCtx(slug);
@@ -201,8 +203,8 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     return json(c, await ctx.eventStore.getRecent(Number(limit) || 20));
   });
 
-  app.get('/api/v1/projects/:slug/roadmap', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/roadmap', async (c) => {
+    const slug = c.req.param('project');
     const rootGoal = c.req.query('root-goal');
     const includeCompleted = c.req.query('include-completed') === 'true';
     const maxDepth = c.req.query('max-depth');
@@ -218,34 +220,34 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     }
   });
 
-  app.get('/api/v1/projects/:slug/goals/progress', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/goals/progress', async (c) => {
+    const slug = c.req.param('project');
     return json(c, await goalProgress(getCtx(slug)));
   });
 
-  app.get('/api/v1/projects/:slug/knowledge', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/knowledge', async (c) => {
+    const slug = c.req.param('project');
     const domain = c.req.query('domain');
     return json(c, await knowledgeMap(getCtx(slug), domain || undefined));
   });
 
-  app.get('/api/v1/projects/:slug/knowledge/tree', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/knowledge/tree', async (c) => {
+    const slug = c.req.param('project');
     return json(c, await getKnowledgeTree(getCtx(slug)));
   });
 
-  app.get('/api/v1/projects/:slug/capabilities/tree', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/capabilities/tree', async (c) => {
+    const slug = c.req.param('project');
     return json(c, await getCapabilityTree(getCtx(slug)));
   });
 
-  app.get('/api/v1/projects/:slug/cockpit', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/cockpit', async (c) => {
+    const slug = c.req.param('project');
     return json(c, await getCockpit(getCtx(slug)));
   });
 
-  app.get('/api/v1/projects/:slug/cockpit-view', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/cockpit-view', async (c) => {
+    const slug = c.req.param('project');
     const project = await manager.getProject(slug);
     if (!project) return json(c, { error: 'Project not found' }, 404);
     const config = project.metadata?.cockpitView as any;
@@ -265,24 +267,24 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     return json(c, { mode: config.mode, layers });
   });
 
-  app.get('/api/v1/projects/:slug/stale', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/stale', async (c) => {
+    const slug = c.req.param('project');
     const days = c.req.query('days');
     return json(c, await staleItems(getCtx(slug), days ? Number(days) : undefined));
   });
 
-  app.get('/api/v1/projects/:slug/blockers', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/blockers', async (c) => {
+    const slug = c.req.param('project');
     return json(c, await currentBlockers(getCtx(slug)));
   });
 
-  app.get('/api/v1/projects/:slug/helm', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/helm', async (c) => {
+    const slug = c.req.param('project');
     return json(c, await getHelmSignals(getCtx(slug)));
   });
 
-  app.get('/api/v1/projects/:slug/projections', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/projections', async (c) => {
+    const slug = c.req.param('project');
     const project = await manager.getProject(slug);
     if (!project) return json(c, { error: 'Project not found' }, 404);
     const types = await listProjectionTypes();
@@ -296,8 +298,8 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     });
   });
 
-  app.post('/api/v1/projects/:slug/projections/:type/generate', async (c) => {
-    const slug = c.req.param('slug');
+  app.post('/:project/api/v1/projections/:type/generate', async (c) => {
+    const slug = c.req.param('project');
     const type = c.req.param('type');
     const project = await manager.getProject(slug);
     if (!project) return json(c, { error: 'Project not found' }, 404);
@@ -314,14 +316,14 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     }
   });
 
-  app.get('/api/v1/projects/:slug/activity', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/activity', async (c) => {
+    const slug = c.req.param('project');
     const limit = c.req.query('limit');
     return json(c, await recentActivity(getCtx(slug), limit ? Number(limit) : undefined));
   });
 
-  app.get('/api/v1/projects/:slug/fts', async (c) => {
-    const slug = c.req.param('slug');
+  app.get('/:project/api/v1/fts', async (c) => {
+    const slug = c.req.param('project');
     const q = c.req.query('q');
     if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
     return json(c, await fullTextSearch(getCtx(slug), q));
@@ -329,8 +331,8 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
 
   // === 知识蒸馏 & 对话 ===
 
-  app.post('/api/v1/projects/:slug/knowledge/distill', async (c) => {
-    const slug = c.req.param('slug');
+  app.post('/:project/api/v1/knowledge/distill', async (c) => {
+    const slug = c.req.param('project');
     const body = await c.req.json();
     const { text, domain, source } = body as { text: string; domain?: string; source?: string };
     if (!text) return json(c, { error: 'Missing "text" field' }, 400);
@@ -475,8 +477,8 @@ ${existingSummary || '（暂无）'}
     }
   });
 
-  app.post('/api/v1/projects/:slug/knowledge/chat', async (c) => {
-    const slug = c.req.param('slug');
+  app.post('/:project/api/v1/knowledge/chat', async (c) => {
+    const slug = c.req.param('project');
     const body = await c.req.json();
     const { messages: userMessages, action } = body as {
       messages: ChatMessage[];
@@ -545,8 +547,8 @@ ${existingSummary || '（暂无）'}
 
   // === 项目级写操作 ===
 
-  app.post('/api/v1/projects/:slug/operations/:name', async (c) => {
-    const slug = c.req.param('slug');
+  app.post('/:project/api/v1/operations/:name', async (c) => {
+    const slug = c.req.param('project');
     const name = c.req.param('name');
     const snakeName = kebabToSnake(name);
     const handler = operationHandlers[snakeName];
@@ -566,8 +568,8 @@ ${existingSummary || '（暂无）'}
     }
   });
 
-  app.post('/api/v1/projects/:slug/batch', async (c) => {
-    const slug = c.req.param('slug');
+  app.post('/:project/api/v1/batch', async (c) => {
+    const slug = c.req.param('project');
     try {
       const ctx = getCtx(slug);
       const input = await c.req.json();
@@ -578,136 +580,6 @@ ${existingSummary || '（暂无）'}
       return json(c, { error: e.message }, 400);
     }
   });
-
-  // === 向后兼容旧路由 ===
-
-  const defaultCtx = async () => getCtx(await manager.getDefaultProject());
-
-  app.get('/api/v1/project/state', async (c) => {
-    return json(c, await getProjectState(await defaultCtx()));
-  });
-
-  app.get('/api/v1/nodes/:id', async (c) => {
-    const nodeId = c.req.param('id');
-    try {
-      return json(c, await getNodeContext(await defaultCtx(), nodeId));
-    } catch (e: any) {
-      return json(c, { error: e.message }, 404);
-    }
-  });
-
-  app.get('/api/v1/nodes/:id/history', async (c) => {
-    const nodeId = c.req.param('id');
-    return json(c, await (await defaultCtx()).eventStore.getByNode(nodeId));
-  });
-
-  app.get('/api/v1/nodes/:id/trail', async (c) => {
-    const nodeId = c.req.param('id');
-    try {
-      return json(c, await decisionTrail(await defaultCtx(), nodeId));
-    } catch (e: any) {
-      return json(c, { error: e.message }, 404);
-    }
-  });
-
-  app.get('/api/v1/search', async (c) => {
-    const q = c.req.query('q');
-    if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
-    return json(c, await (await defaultCtx()).nodes.search(q));
-  });
-
-  app.get('/api/v1/events', async (c) => {
-    const since = c.req.query('since');
-    const limit = c.req.query('limit');
-    const ctx = await defaultCtx();
-    if (since) return json(c, await ctx.eventStore.getSince(since));
-    return json(c, await ctx.eventStore.getRecent(Number(limit) || 20));
-  });
-
-  app.get('/api/v1/roadmap', async (c) => {
-    const rootGoal = c.req.query('root-goal');
-    const includeCompleted = c.req.query('include-completed') === 'true';
-    const maxDepth = c.req.query('max-depth');
-    try {
-      const result = await getRoadmap(await defaultCtx(), {
-        root_goal: rootGoal || undefined,
-        include_completed: includeCompleted,
-        max_depth: maxDepth ? Number(maxDepth) : undefined,
-      });
-      return json(c, result);
-    } catch (e: any) {
-      return json(c, { error: e.message }, 404);
-    }
-  });
-
-  app.get('/api/v1/goals/progress', async (c) => {
-    return json(c, await goalProgress(await defaultCtx()));
-  });
-
-  app.get('/api/v1/knowledge', async (c) => {
-    const domain = c.req.query('domain');
-    return json(c, await knowledgeMap(await defaultCtx(), domain || undefined));
-  });
-
-  app.get('/api/v1/stale', async (c) => {
-    const days = c.req.query('days');
-    return json(c, await staleItems(await defaultCtx(), days ? Number(days) : undefined));
-  });
-
-  app.get('/api/v1/blockers', async (c) => {
-    return json(c, await currentBlockers(await defaultCtx()));
-  });
-
-  app.get('/api/v1/activity', async (c) => {
-    const limit = c.req.query('limit');
-    return json(c, await recentActivity(await defaultCtx(), limit ? Number(limit) : undefined));
-  });
-
-  app.get('/api/v1/fts', async (c) => {
-    const q = c.req.query('q');
-    if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
-    return json(c, await fullTextSearch(await defaultCtx(), q));
-  });
-
-  app.post('/api/v1/operations/:name', async (c) => {
-    const name = c.req.param('name');
-    const snakeName = kebabToSnake(name);
-    const handler = operationHandlers[snakeName];
-    if (!handler) {
-      return json(c, { error: `Unknown operation: ${name}` }, 404);
-    }
-    try {
-      const input = await c.req.json();
-      const snakeInput = camelToSnake(input);
-      const ctx = await defaultCtx();
-      const result = await handler(ctx, snakeInput);
-      if (AUTO_LINK_OPERATIONS.has(snakeName)) triggerAutoLink(ctx, result);
-      return json(c, result);
-    } catch (e: any) {
-      return json(c, { error: e.message }, 400);
-    }
-  });
-
-  app.post('/api/v1/batch', async (c) => {
-    try {
-      const input = await c.req.json();
-      const snakeInput = camelToSnake(input) as BatchOperationsInput;
-      const result = await batchOperations(await defaultCtx(), snakeInput, operationHandlers);
-      return json(c, result);
-    } catch (e: any) {
-      return json(c, { error: e.message }, 400);
-    }
-  });
-
-  // === 前端静态文件 ===
-
-  const WEB_DIST = resolve(import.meta.dirname ?? '.', '../../si-beaver-web/dist');
-
-  if (existsSync(WEB_DIST)) {
-    app.use('/*', serveStatic({ root: WEB_DIST }));
-    app.get('*', serveStatic({ root: WEB_DIST, path: '/index.html' }));
-    console.log(`Serving frontend from ${WEB_DIST}`);
-  }
 
   return app;
 }
@@ -745,11 +617,12 @@ async function start() {
   startEmbedSync(manager);
 
   const honoListener = getRequestListener(app.fetch);
+  const MCP_PATH = /^\/([a-z0-9][a-z0-9-]*[a-z0-9]|[a-z0-9])\/mcp$/;
 
   const httpServer = createServer(async (req, res) => {
     const pathname = req.url?.split('?')[0] ?? '/';
 
-    if (pathname.startsWith('/mcp/') && req.method === 'OPTIONS') {
+    if (MCP_PATH.test(pathname) && req.method === 'OPTIONS') {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', '*');
@@ -758,7 +631,7 @@ async function start() {
       return;
     }
 
-    if (pathname.startsWith('/mcp/')) {
+    if (MCP_PATH.test(pathname)) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', '*');
@@ -784,8 +657,8 @@ async function start() {
 
   httpServer.listen(PORT, () => {
     console.log(`si-beaver running at http://localhost:${PORT} (REST + MCP unified)`);
-    console.log(`  REST API: http://localhost:${PORT}/api/v1/...`);
-    console.log(`  MCP:      http://localhost:${PORT}/mcp/{slug}`);
+    console.log(`  REST API: http://localhost:${PORT}/{project}/api/v1/...`);
+    console.log(`  MCP:      http://localhost:${PORT}/{project}/mcp`);
     console.log(`  Auth:     Bearer token ENABLED`);
   });
 

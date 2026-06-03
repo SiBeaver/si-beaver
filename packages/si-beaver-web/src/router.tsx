@@ -11,18 +11,14 @@ export const router = createBrowserRouter([
   },
   {
     path: '/',
-    element: <Navigate to="/projects" replace />,
-  },
-  {
-    path: '/projects',
     element: <AuthGuard><ProjectsPage /></AuthGuard>,
   },
   {
-    path: '/projects/:slug',
+    path: '/:slug',
     element: <Navigate to="cockpit" replace />,
   },
   {
-    path: '/projects/:slug/:tab',
+    path: '/:slug/:tab',
     element: <AuthGuard><ProjectDetailPage /></AuthGuard>,
   },
 ]);

@@ -1,6 +1,6 @@
 /**
  * MCP Server with Streamable HTTP transport.
- * Routes: /mcp/{slug} — each slug gets a project-scoped MCP server.
+ * Routes: /{slug}/mcp — each slug gets a project-scoped MCP server.
  * Unknown slugs get a degraded session with only `initialize_project`.
  *
  * This module exports a handler function; it no longer starts its own server.
@@ -68,10 +68,10 @@ function scheduleSessionCleanup(sid: string, entry: SessionEntry): void {
 // Exported handler
 // ============================================================
 
-const SLUG_PATTERN = /^\/mcp\/([a-z0-9][a-z0-9-]*[a-z0-9]|[a-z0-9])$/;
+const SLUG_PATTERN = /^\/([a-z0-9][a-z0-9-]*[a-z0-9]|[a-z0-9])\/mcp$/;
 
 /**
- * Handle an incoming request on `/mcp/{slug}`.
+ * Handle an incoming request on `/{slug}/mcp`.
  * Returns true if the request was handled, false if the path didn't match.
  */
 export async function handleMcpRequest(

@@ -60,7 +60,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 }
 
 function projectPath(path: string): string {
-  return `/api/v1/projects/${config.sibsProject}${path}`;
+  return `/${config.sibsProject}/api/v1${path}`;
 }
 
 function operation(name: string, body: unknown) {

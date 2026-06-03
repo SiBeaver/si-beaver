@@ -37,7 +37,7 @@ export default function LoginPage() {
       // Token valid — store and redirect
       setToken(trimmed);
       message.success('验证通过');
-      navigate('/projects', { replace: true });
+      navigate('/', { replace: true });
     } catch {
       message.error('网络错误，无法连接服务器');
       setLoading(false);

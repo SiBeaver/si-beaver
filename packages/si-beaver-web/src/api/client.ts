@@ -71,15 +71,15 @@ export function fetchRoadmap(slug: string, includeCompleted = true, maxDepth = 5
     'include-completed': String(includeCompleted),
     'max-depth': String(maxDepth),
   });
-  return get<RoadmapResponse>(`/api/v1/projects/${slug}/roadmap?${params}`);
+  return get<RoadmapResponse>(`/${slug}/api/v1/roadmap?${params}`);
 }
 
 export function fetchBlockers(slug: string) {
-  return get<BlockersResponse>(`/api/v1/projects/${slug}/blockers`);
+  return get<BlockersResponse>(`/${slug}/api/v1/blockers`);
 }
 
 export function fetchProjectState(slug: string) {
-  return get<ProjectState>(`/api/v1/projects/${slug}/state`);
+  return get<ProjectState>(`/${slug}/api/v1/state`);
 }
 
 export interface KnowledgeTreeNode {
@@ -105,11 +105,11 @@ export interface KnowledgeTreeResponse {
 }
 
 export function fetchKnowledgeTree(slug: string) {
-  return get<KnowledgeTreeResponse>(`/api/v1/projects/${slug}/knowledge/tree`);
+  return get<KnowledgeTreeResponse>(`/${slug}/api/v1/knowledge/tree`);
 }
 
 export function fetchNodeContext(slug: string, nodeId: string) {
-  return get<NodeContext>(`/api/v1/projects/${slug}/nodes/${nodeId}`);
+  return get<NodeContext>(`/${slug}/api/v1/nodes/${nodeId}`);
 }
 
 // --- Knowledge operations ---
@@ -131,19 +131,19 @@ export interface KnowledgeChatResponse {
 }
 
 export function distillKnowledge(slug: string, text: string, domain?: string, source?: string) {
-  return post<DistillResponse>(`/api/v1/projects/${slug}/knowledge/distill`, { text, domain, source });
+  return post<DistillResponse>(`/${slug}/api/v1/knowledge/distill`, { text, domain, source });
 }
 
 export function knowledgeChat(slug: string, messages: ChatMessage[], action?: 'chat' | 'save') {
-  return post<KnowledgeChatResponse>(`/api/v1/projects/${slug}/knowledge/chat`, { messages, action });
+  return post<KnowledgeChatResponse>(`/${slug}/api/v1/knowledge/chat`, { messages, action });
 }
 
 export function executeOperation(slug: string, operation: string, input: Record<string, unknown>) {
-  return post<unknown>(`/api/v1/projects/${slug}/operations/${operation}`, input);
+  return post<unknown>(`/${slug}/api/v1/operations/${operation}`, input);
 }
 
 export function deleteNode(slug: string, nodeId: string) {
-  return post<unknown>(`/api/v1/projects/${slug}/operations/delete-node`, { node_id: nodeId });
+  return post<unknown>(`/${slug}/api/v1/operations/delete-node`, { node_id: nodeId });
 }
 
 export interface CapabilityTreeNode {
@@ -166,7 +166,7 @@ export interface CapabilityTreeResponse {
 }
 
 export function fetchCapabilityTree(slug: string) {
-  return get<CapabilityTreeResponse>(`/api/v1/projects/${slug}/capabilities/tree`);
+  return get<CapabilityTreeResponse>(`/${slug}/api/v1/capabilities/tree`);
 }
 
 export interface CockpitLayer {
@@ -181,7 +181,7 @@ export interface CockpitViewResponse {
 }
 
 export function fetchCockpitView(slug: string) {
-  return get<CockpitViewResponse>(`/api/v1/projects/${slug}/cockpit-view`);
+  return get<CockpitViewResponse>(`/${slug}/api/v1/cockpit-view`);
 }
 
 // --- Helm signals ---
@@ -205,5 +205,5 @@ export interface HelmResponse {
 }
 
 export function fetchHelmSignals(slug: string) {
-  return get<HelmResponse>(`/api/v1/projects/${slug}/helm`);
+  return get<HelmResponse>(`/${slug}/api/v1/helm`);
 }
