@@ -1,12 +1,9 @@
-import { useState } from 'react';
 import { Typography, Tag, Skeleton, Alert, Empty, Space, Tooltip } from 'antd';
 import {
   CheckCircleOutlined,
   ExperimentOutlined,
   ThunderboltOutlined,
   ClockCircleOutlined,
-  RightOutlined,
-  DownOutlined,
 } from '@ant-design/icons';
 import useSWR from 'swr';
 import { fetchCockpitView } from '../../api/client';
@@ -14,6 +11,7 @@ import type { CapabilityTreeNode, CockpitLayer } from '../../api/client';
 
 interface Props {
   slug: string;
+  onSelectCapability?: (cap: CapabilityTreeNode) => void;
 }
 
 const MATURITY_COLORS: Record<string, { bg: string; border: string; text: string }> = {
@@ -30,8 +28,7 @@ const MATURITY_ICONS: Record<string, React.ReactNode> = {
   planned: <ClockCircleOutlined />,
 };
 
-function CapabilityBlock({ cap }: { cap: CapabilityTreeNode }) {
-  const [expanded, setExpanded] = useState(false);
+function CapabilityBlock({ cap, onSelect }: { cap: CapabilityTreeNode; onSelect?: (cap: CapabilityTreeNode) => void }) {
   const colors = MATURITY_COLORS[cap.maturity] ?? MATURITY_COLORS.planned;
 
   return (
@@ -43,16 +40,11 @@ function CapabilityBlock({ cap }: { cap: CapabilityTreeNode }) {
         padding: '12px 16px',
         minWidth: 180,
         flex: '1 1 auto',
-        cursor: cap.children.length > 0 ? 'pointer' : 'default',
+        cursor: 'pointer',
       }}
-      onClick={() => cap.children.length > 0 && setExpanded(!expanded)}
+      onClick={() => onSelect?.(cap)}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-        {cap.children.length > 0 && (
-          expanded
-            ? <DownOutlined style={{ fontSize: 10, color: colors.text }} />
-            : <RightOutlined style={{ fontSize: 10, color: colors.text }} />
-        )}
         <span style={{ color: colors.text, fontSize: 13 }}>
           {MATURITY_ICONS[cap.maturity]}
         </span>
@@ -65,7 +57,7 @@ function CapabilityBlock({ cap }: { cap: CapabilityTreeNode }) {
           {cap.description.length > 60 ? cap.description.slice(0, 60) + '...' : cap.description}
         </Typography.Text>
       )}
-      {!expanded && cap.children.length > 0 && (
+      {cap.children.length > 0 && (
         <div style={{ marginTop: 4 }}>
           <Space size={[4, 4]} wrap>
             {cap.children.map(child => {
@@ -83,27 +75,11 @@ function CapabilityBlock({ cap }: { cap: CapabilityTreeNode }) {
           </Space>
         </div>
       )}
-      {expanded && cap.children.length > 0 && (
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${colors.border}` }}>
-          {cap.children.map(child => {
-            const cc = MATURITY_COLORS[child.maturity] ?? MATURITY_COLORS.planned;
-            return (
-              <div key={child.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span style={{ color: cc.text, fontSize: 12 }}>{MATURITY_ICONS[child.maturity]}</span>
-                <Typography.Text style={{ fontSize: 13 }}>{child.title}</Typography.Text>
-                <Tag color={cc.text === '#389e0d' ? 'green' : cc.text === '#1677ff' ? 'blue' : cc.text === '#d46b08' ? 'orange' : 'default'} style={{ fontSize: 11 }}>
-                  {child.maturity}
-                </Tag>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
 
-function LayerRow({ layer, isBottom }: { layer: CockpitLayer; isBottom: boolean }) {
+function LayerRow({ layer, isBottom, onSelect }: { layer: CockpitLayer; isBottom: boolean; onSelect?: (cap: CapabilityTreeNode) => void }) {
   return (
     <div style={{ marginBottom: 2 }}>
       <div
@@ -125,7 +101,7 @@ function LayerRow({ layer, isBottom }: { layer: CockpitLayer; isBottom: boolean 
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', flex: 1 }}>
           {layer.capabilities.map(cap => (
-            <CapabilityBlock key={cap.id} cap={cap} />
+            <CapabilityBlock key={cap.id} cap={cap} onSelect={onSelect} />
           ))}
         </div>
       </div>
@@ -133,7 +109,7 @@ function LayerRow({ layer, isBottom }: { layer: CockpitLayer; isBottom: boolean 
   );
 }
 
-export function CockpitView({ slug }: Props) {
+export function CockpitView({ slug, onSelectCapability }: Props) {
   const { data, error, isLoading } = useSWR(
     `${slug}/cockpit-view`,
     () => fetchCockpitView(slug),
@@ -151,7 +127,7 @@ export function CockpitView({ slug }: Props) {
   const reversedLayers = [...layers].reverse();
 
   return (
-    <div style={{ maxWidth: 1000 }}>
+    <div>
       <Typography.Title level={4} style={{ marginBottom: 20 }}>
         系统架构
       </Typography.Title>
@@ -161,6 +137,7 @@ export function CockpitView({ slug }: Props) {
             key={layer.id}
             layer={layer}
             isBottom={i === reversedLayers.length - 1}
+            onSelect={onSelectCapability}
           />
         ))}
       </div>

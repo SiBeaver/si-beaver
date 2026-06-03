@@ -1,48 +1,33 @@
-import { useState, createElement } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Layout, Menu, Typography, Button, theme } from 'antd';
-import {
-  ReloadOutlined,
-  ArrowLeftOutlined,
-  LogoutOutlined,
-  CompassOutlined,
-  MessageOutlined,
-  GlobalOutlined,
-} from '@ant-design/icons';
+import { Typography, Button, Badge, theme, Space } from 'antd';
+import { ReloadOutlined, ArrowLeftOutlined, MessageOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useSWRConfig } from 'swr';
+import useSWR from 'swr';
 import { CockpitView } from '../components/cockpit/CockpitView';
-import { HelmView } from '../components/helm/HelmView';
 import { ChatPanel } from '../components/chat/ChatPanel';
+import { CapabilityPanel } from '../components/capability/CapabilityPanel';
 import { clearToken } from '../lib/auth';
-import { getPlugins } from '../plugin/registry';
-import type { TabPlugin } from '../plugin/types';
-
-const { Sider, Content } = Layout;
-
-const BASE_TABS: (TabPlugin & { builtin: true })[] = [
-  { key: 'cockpit', label: '地图', icon: GlobalOutlined, component: CockpitView, builtin: true },
-  { key: 'helm', label: '方向舵', icon: CompassOutlined, component: HelmView, builtin: true },
-];
-
-function getAllTabs(): TabPlugin[] {
-  const plugins = getPlugins();
-  const pluginKeys = new Set(plugins.map(p => p.key));
-  const baseFiltered = BASE_TABS.filter(t => !pluginKeys.has(t.key));
-  return [...baseFiltered, ...plugins];
-}
+import { fetchHelmSignals } from '../api/client';
+import type { CapabilityTreeNode } from '../api/client';
 
 export function ProjectDetailPage() {
-  const { slug, tab } = useParams<{ slug: string; tab: string }>();
-  const allTabs = getAllTabs();
-  const activeTab = tab || 'cockpit';
+  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { mutate } = useSWRConfig();
   const [spinning, setSpinning] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [selectedCapability, setSelectedCapability] = useState<CapabilityTreeNode | null>(null);
   const { token } = theme.useToken();
 
-  const tabMap = new Map(allTabs.map(t => [t.key, t]));
-  const activePlugin = tabMap.get(activeTab);
+  const { data: helmData } = useSWR(
+    `${slug}/helm-count`,
+    () => fetchHelmSignals(slug!),
+    { refreshInterval: 30_000 },
+  );
+  const alertCount = helmData?.signals?.length ?? 0;
+
+  const panelOpen = selectedCapability !== null || chatOpen;
 
   const handleRefresh = () => {
     setSpinning(true);
@@ -55,123 +40,64 @@ export function ProjectDetailPage() {
     navigate('/login', { replace: true });
   };
 
+  const handleToggleChat = () => {
+    if (chatOpen) {
+      setChatOpen(false);
+    } else {
+      setChatOpen(true);
+      setSelectedCapability(null);
+    }
+  };
+
   return (
-    <Layout style={{ minHeight: '100vh', background: token.colorBgLayout }}>
-      <Sider
-        width={72}
-        style={{
-          background: token.colorBgContainer,
-          borderRight: `1px solid ${token.colorBorderSecondary}`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          paddingTop: 20,
-        }}
-      >
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 10,
-            background: token.colorPrimaryBg,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 24,
-            marginLeft: 18,
-            cursor: 'pointer',
-          }}
-          onClick={() => navigate('/')}
-        >
-          <ArrowLeftOutlined style={{ color: token.colorPrimary, fontSize: 14 }} />
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: token.colorBgLayout }}>
+      <div style={{
+        height: 48,
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 16px',
+        borderBottom: `1px solid ${token.colorBorderSecondary}`,
+        background: token.colorBgContainer,
+        flexShrink: 0,
+      }}>
+        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/')} />
+        <Typography.Title level={5} style={{ margin: '0 16px', flex: 1 }}>{slug}</Typography.Title>
+        <Space size={4}>
+          {alertCount > 0 && <Badge count={alertCount} size="small" />}
+          <Button type="text" size="small" icon={<ReloadOutlined spin={spinning} />} onClick={handleRefresh} />
+          <Button type="text" size="small" icon={<MessageOutlined />} onClick={handleToggleChat} />
+          <Button type="text" size="small" icon={<LogoutOutlined />} onClick={handleLogout} />
+        </Space>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: panelOpen ? 24 : 32 }}>
+          <CockpitView slug={slug!} onSelectCapability={setSelectedCapability} />
         </div>
-        <Menu
-          mode="inline"
-          inlineCollapsed
-          selectedKeys={[activeTab]}
-          onSelect={({ key }) => navigate(`/${slug}/${key}`)}
-          style={{ border: 'none', background: 'transparent' }}
-          items={allTabs.map(t => ({
-            key: t.key,
-            icon: createElement(t.icon as any, { style: { fontSize: 18 } }),
-            label: t.label,
-          }))}
-        />
-        <div style={{ flex: 1 }} />
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 12,
-            cursor: 'pointer',
-            color: chatOpen ? token.colorPrimary : token.colorTextSecondary,
-            background: chatOpen ? token.colorPrimaryBg : undefined,
-          }}
-          onClick={() => setChatOpen(!chatOpen)}
-          title="对话"
-        >
-          <MessageOutlined style={{ fontSize: 16 }} />
-        </div>
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 20,
-            cursor: 'pointer',
-            color: token.colorTextSecondary,
-          }}
-          onClick={handleLogout}
-          title="登出"
-        >
-          <LogoutOutlined style={{ fontSize: 16 }} />
-        </div>
-      </Sider>
-      <Layout style={{ background: token.colorBgLayout }}>
-        <div style={{
-          padding: '20px 32px 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            {activePlugin?.label ?? activeTab}
-          </Typography.Title>
-          <Button
-            type="text"
-            size="small"
-            icon={<ReloadOutlined spin={spinning} />}
-            onClick={handleRefresh}
-          />
-        </div>
-        <Layout style={{ background: token.colorBgLayout }}>
-          <Content style={{ padding: 32, overflow: 'auto' }}>
-            {activePlugin && <activePlugin.component slug={slug!} />}
-          </Content>
-          {chatOpen && (
-            <Sider
-              width={360}
-              style={{
-                background: token.colorBgContainer,
-                borderLeft: `1px solid ${token.colorBorderSecondary}`,
-                padding: 16,
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              <Typography.Text strong style={{ marginBottom: 12, display: 'block' }}>对话</Typography.Text>
-              <ChatPanel slug={slug!} />
-            </Sider>
-          )}
-        </Layout>
-      </Layout>
-    </Layout>
+
+        {panelOpen && (
+          <div style={{
+            width: 380,
+            borderLeft: `1px solid ${token.colorBorderSecondary}`,
+            background: token.colorBgContainer,
+            overflow: 'auto',
+            flexShrink: 0,
+          }}>
+            {selectedCapability && (
+              <CapabilityPanel
+                capability={selectedCapability}
+                onClose={() => setSelectedCapability(null)}
+              />
+            )}
+            {chatOpen && !selectedCapability && (
+              <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Typography.Text strong style={{ marginBottom: 12 }}>对话</Typography.Text>
+                <ChatPanel slug={slug!} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
