@@ -48,13 +48,18 @@ export interface ApiGoalNode extends ApiNode {
   priority: Priority;
 }
 
+export interface ApiTaskNode extends ApiNode {
+  type: 'task';
+  status: 'open' | 'in_progress' | 'done' | 'cancelled';
+  priority: Priority;
+}
+
 export interface ApiRequirementNode extends ApiNode {
   type: 'requirement';
   status: RequirementStatus;
   priority: Priority;
   source: string;
   sourceDetail: string | null;
-  acceptanceCriteria: string[];
 }
 
 export interface ApiKnowledgeNode extends ApiNode {
@@ -63,10 +68,12 @@ export interface ApiKnowledgeNode extends ApiNode {
   domain: string;
   confidence: 'low' | 'medium' | 'high';
   source: string;
+  scope: 'project' | 'domain';
 }
 
 export type ApiCognitiveNode =
   | ApiGoalNode
+  | ApiTaskNode
   | ApiRequirementNode
   | ApiKnowledgeNode
   | ApiNode;

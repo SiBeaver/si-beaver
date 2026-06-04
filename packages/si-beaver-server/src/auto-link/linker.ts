@@ -213,7 +213,7 @@ function nodeSpecificFields(node: CognitiveNode): string {
     case 'knowledge':
       return `- domain: ${node.domain}\n- confidence: ${node.confidence}`;
     case 'requirement':
-      return `- acceptance_criteria: ${node.acceptance_criteria.join('; ')}`;
+      return `- source: ${node.source}\n- priority: ${node.priority}`;
     case 'goal':
       return `- success_criteria: ${node.success_criteria.join('; ')}`;
     case 'decision':

@@ -39,6 +39,7 @@ export type {
   ApiProjectState,
   ApiCognitiveNode,
   ApiGoalNode,
+  ApiTaskNode,
   ApiRequirementNode,
   ApiKnowledgeNode,
   ApiEdge,

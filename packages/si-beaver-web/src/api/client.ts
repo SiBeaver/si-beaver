@@ -90,6 +90,7 @@ export interface KnowledgeTreeNode {
   content: string;
   status: string;
   confidence: string;
+  scope: string;
   pinned: boolean;
   sort_order: number;
   parent_id: string | null;
@@ -144,44 +145,6 @@ export function executeOperation(slug: string, operation: string, input: Record<
 
 export function deleteNode(slug: string, nodeId: string) {
   return post<unknown>(`/${slug}/api/v1/operations/delete-node`, { node_id: nodeId });
-}
-
-export interface CapabilityTreeNode {
-  id: string;
-  title: string;
-  description: string;
-  maturity: string;
-  scope: string;
-  domain: string;
-  acceptanceCriteria: string[];
-  tags: string[];
-  updatedAt: string;
-  children: CapabilityTreeNode[];
-  progress: { done: number; total: number };
-}
-
-export interface CapabilityTreeResponse {
-  tree: CapabilityTreeNode[];
-  total: number;
-}
-
-export function fetchCapabilityTree(slug: string) {
-  return get<CapabilityTreeResponse>(`/${slug}/api/v1/capabilities/tree`);
-}
-
-export interface CockpitLayer {
-  id: string;
-  label: string;
-  capabilities: CapabilityTreeNode[];
-}
-
-export interface CockpitViewResponse {
-  mode: string;
-  layers: CockpitLayer[];
-}
-
-export function fetchCockpitView(slug: string) {
-  return get<CockpitViewResponse>(`/${slug}/api/v1/cockpit-view`);
 }
 
 // --- Helm signals ---

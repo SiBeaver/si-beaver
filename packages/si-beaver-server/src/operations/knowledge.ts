@@ -13,6 +13,7 @@ export interface RecordKnowledgeInput {
   domain: string;
   confidence?: 'low' | 'medium' | 'high';
   source: string;
+  scope?: 'project' | 'domain';
   content?: string;
   parent_id?: string | null;
   pinned?: boolean;
@@ -36,6 +37,7 @@ export async function recordKnowledge(ctx: OperationContext, input: RecordKnowle
     domain: input.domain,
     confidence: input.confidence ?? 'medium',
     source: input.source,
+    scope: input.scope ?? 'project',
     valid_until: null,
     content: input.content ?? '',
     parent_id: input.parent_id ?? null,
@@ -94,6 +96,7 @@ export interface UpdateKnowledgeInput {
   content?: string;
   domain?: string;
   confidence?: 'low' | 'medium' | 'high';
+  scope?: 'project' | 'domain';
   status?: 'tentative' | 'established' | 'outdated';
   tags?: string[];
   parent_id?: string | null;
@@ -113,6 +116,7 @@ export async function updateKnowledge(ctx: OperationContext, input: UpdateKnowle
     content: input.content ?? (node as any).content ?? '',
     domain: input.domain ?? (node as KnowledgeNode).domain,
     confidence: input.confidence ?? (node as KnowledgeNode).confidence,
+    scope: input.scope ?? (node as KnowledgeNode).scope ?? 'project',
     status: input.status ?? node.status as any,
     tags: input.tags ?? node.tags,
     parent_id: input.parent_id !== undefined ? input.parent_id : (node as any).parent_id ?? null,
@@ -144,6 +148,7 @@ export interface KnowledgeTreeNode {
   content: string;
   status: string;
   confidence: string;
+  scope: string;
   pinned: boolean;
   sort_order: number;
   parent_id: string | null;
@@ -169,6 +174,7 @@ export async function getKnowledgeTree(ctx: OperationContext) {
       content: kn.content || '',
       status: n.status,
       confidence: kn.confidence,
+      scope: kn.scope || 'project',
       pinned: kn.pinned,
       sort_order: kn.sort_order,
       parent_id: kn.parent_id,

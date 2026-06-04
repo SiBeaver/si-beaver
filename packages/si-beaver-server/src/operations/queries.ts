@@ -103,7 +103,7 @@ export async function goalProgress(ctx: OperationContext) {
 
     const total = subItems.length;
     const done = subItems.filter(n =>
-      n.status === 'achieved' || n.status === 'concluded'
+      n.status === 'achieved' || n.status === 'concluded' || n.status === 'done'
     ).length;
     const percentage = total > 0 ? Math.round((done / total) * 100) : 0;
 

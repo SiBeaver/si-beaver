@@ -14,7 +14,6 @@ export const NodeType = z.enum([
   'artifact',
   'knowledge',
   'requirement',
-  'capability',
 ]);
 export type NodeType = z.infer<typeof NodeType>;
 
@@ -27,6 +26,9 @@ export type Priority = z.infer<typeof Priority>;
 
 export const GoalStatus = z.enum(['active', 'achieved', 'abandoned', 'deferred']);
 export type GoalStatus = z.infer<typeof GoalStatus>;
+
+export const TaskStatus = z.enum(['open', 'in_progress', 'done', 'cancelled']);
+export type TaskStatus = z.infer<typeof TaskStatus>;
 
 export const ExplorationStatus = z.enum(['proposed', 'active', 'concluded', 'abandoned']);
 export type ExplorationStatus = z.infer<typeof ExplorationStatus>;
@@ -79,6 +81,13 @@ export const GoalNode = BaseNode.extend({
   priority: Priority,
 });
 export type GoalNode = z.infer<typeof GoalNode>;
+
+export const TaskNode = BaseNode.extend({
+  type: z.literal('task'),
+  status: TaskStatus,
+  priority: Priority.default('medium'),
+});
+export type TaskNode = z.infer<typeof TaskNode>;
 
 export const ExplorationNode = BaseNode.extend({
   type: z.literal('exploration'),
@@ -139,12 +148,16 @@ export const ArtifactNode = BaseNode.extend({
 });
 export type ArtifactNode = z.infer<typeof ArtifactNode>;
 
+export const KnowledgeScope = z.enum(['project', 'domain']);
+export type KnowledgeScope = z.infer<typeof KnowledgeScope>;
+
 export const KnowledgeNode = BaseNode.extend({
   type: z.literal('knowledge'),
   status: KnowledgeStatus,
   domain: z.string(),
   confidence: z.enum(['low', 'medium', 'high']),
   source: z.string(),
+  scope: KnowledgeScope.default('project'),
   valid_until: z.string().nullable().default(null),
   content: z.string().default(''),
   parent_id: z.string().nullable().default(null),
@@ -159,23 +172,8 @@ export const RequirementNode = BaseNode.extend({
   priority: Priority,
   source: z.string(),
   source_detail: z.string().nullable().default(null),
-  acceptance_criteria: z.array(z.string()).default([]),
 });
 export type RequirementNode = z.infer<typeof RequirementNode>;
-
-export const CapabilityStatus = z.enum(['planned', 'alpha', 'beta', 'stable', 'deprecated']);
-export type CapabilityStatus = z.infer<typeof CapabilityStatus>;
-
-export const CapabilityNode = BaseNode.extend({
-  type: z.literal('capability'),
-  status: CapabilityStatus,
-  maturity: CapabilityStatus,
-  scope: z.string().default(''),
-  acceptance_criteria: z.array(z.string()).default([]),
-  domain: z.string().default(''),
-  focus: z.boolean().default(false),
-});
-export type CapabilityNode = z.infer<typeof CapabilityNode>;
 
 // ============================================================
 // 联合节点类型
@@ -183,6 +181,7 @@ export type CapabilityNode = z.infer<typeof CapabilityNode>;
 
 export const CognitiveNode = z.discriminatedUnion('type', [
   GoalNode,
+  TaskNode,
   ExplorationNode,
   DecisionNode,
   RiskNode,
@@ -190,6 +189,5 @@ export const CognitiveNode = z.discriminatedUnion('type', [
   ArtifactNode,
   KnowledgeNode,
   RequirementNode,
-  CapabilityNode,
 ]);
 export type CognitiveNode = z.infer<typeof CognitiveNode>;

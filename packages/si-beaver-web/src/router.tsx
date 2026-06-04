@@ -15,7 +15,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/:slug',
-    element: <Navigate to="cockpit" replace />,
+    element: <Navigate to="architect" replace />,
   },
   {
     path: '/:slug/:tab',

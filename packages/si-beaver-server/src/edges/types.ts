@@ -19,7 +19,6 @@ export const RelationType = z.enum([
   'derived_from',
   'fulfills',
   'contradicts',
-  'drives',
 ]);
 export type RelationType = z.infer<typeof RelationType>;
 
@@ -52,8 +51,8 @@ type RelationConstraint = {
 
 export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   decomposes_into: {
-    source: ['goal', 'capability', 'requirement'],
-    target: ['goal', 'capability', 'requirement'],
+    source: ['goal', 'requirement'],
+    target: ['goal', 'task', 'requirement'],
   },
   spawns: {
     source: ['goal', 'risk'],
@@ -65,7 +64,7 @@ export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   },
   informs: {
     source: ['knowledge', 'decision', 'requirement'],
-    target: ['decision', 'goal'],
+    target: ['decision', 'goal', 'task'],
   },
   creates: {
     source: ['decision'],
@@ -81,18 +80,18 @@ export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   },
   blocks: {
     source: ['risk', 'tech_debt', 'requirement'],
-    target: ['goal', 'capability'],
+    target: ['goal', 'task'],
   },
   relates_to: {
-    source: ['goal', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement', 'capability'],
-    target: ['goal', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement', 'capability'],
+    source: ['goal', 'task', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement'],
+    target: ['goal', 'task', 'exploration', 'decision', 'risk', 'tech_debt', 'artifact', 'knowledge', 'requirement'],
   },
   supersedes: {
-    source: ['decision', 'knowledge', 'requirement', 'capability'],
-    target: ['decision', 'knowledge', 'requirement', 'capability'],
+    source: ['decision', 'knowledge', 'requirement'],
+    target: ['decision', 'knowledge', 'requirement'],
   },
   evidenced_by: {
-    source: ['knowledge', 'decision', 'requirement', 'capability'],
+    source: ['knowledge', 'decision', 'requirement'],
     target: ['artifact'],
   },
   derived_from: {
@@ -101,15 +100,11 @@ export const RELATION_CONSTRAINTS: Record<RelationType, RelationConstraint> = {
   },
   fulfills: {
     source: ['goal'],
-    target: ['requirement', 'capability'],
+    target: ['requirement'],
   },
   contradicts: {
     source: ['knowledge'],
     target: ['requirement'],
-  },
-  drives: {
-    source: ['requirement'],
-    target: ['capability'],
   },
 };
 

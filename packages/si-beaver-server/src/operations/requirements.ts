@@ -14,7 +14,6 @@ export interface DefineRequirementInput {
   priority?: 'critical' | 'high' | 'medium' | 'low';
   source: string;
   source_detail?: string;
-  acceptance_criteria?: string[];
   parent_goal?: string;
   tags?: string[];
 }
@@ -34,7 +33,6 @@ export async function defineRequirement(ctx: OperationContext, input: DefineRequ
     priority: input.priority ?? 'medium',
     source: input.source,
     source_detail: input.source_detail ?? null,
-    acceptance_criteria: input.acceptance_criteria ?? [],
   };
 
   await ctx.nodes.insert(requirement);

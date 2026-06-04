@@ -200,6 +200,7 @@ export async function concludeExploration(ctx: OperationContext, input: Conclude
       domain: k.domain,
       confidence: k.confidence ?? 'medium' as const,
       source: `Exploration: ${exploration.title}`,
+      scope: 'project' as const,
       valid_until: null,
       content: '', parent_id: null, pinned: false, sort_order: 0,
     };
@@ -269,6 +270,7 @@ export async function abandonExploration(ctx: OperationContext, input: AbandonEx
       domain: 'lessons-learned',
       confidence: 'medium' as const,
       source: `Abandoned exploration: ${(node as ExplorationNode).title}`,
+      scope: 'project' as const,
       valid_until: null,
       content: '', parent_id: null, pinned: false, sort_order: 0,
     };

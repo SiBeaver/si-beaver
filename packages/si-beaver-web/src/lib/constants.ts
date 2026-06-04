@@ -1,6 +1,6 @@
 import type { CognitiveNode } from './types';
 
-export type Tab = 'cockpit' | 'helm' | 'architect' | 'developer' | 'reviewer';
+export type Tab = 'helm' | 'architect' | 'developer' | 'reviewer';
 
 export const NODE_TYPE_COLORS: Record<CognitiveNode['type'], string> = {
   goal: 'blue',
@@ -12,7 +12,6 @@ export const NODE_TYPE_COLORS: Record<CognitiveNode['type'], string> = {
   artifact: 'cyan',
   knowledge: 'geekblue',
   requirement: 'magenta',
-  capability: 'volcano',
 };
 
 export const NODE_TYPE_LABELS: Record<CognitiveNode['type'], string> = {
@@ -25,7 +24,6 @@ export const NODE_TYPE_LABELS: Record<CognitiveNode['type'], string> = {
   artifact: '产物',
   knowledge: '知识',
   requirement: '需求',
-  capability: '能力',
 };
 
 export const STATUS_COLORS: Record<string, string> = {

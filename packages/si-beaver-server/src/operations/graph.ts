@@ -98,6 +98,8 @@ export async function deleteNode(ctx: OperationContext, input: DeleteNodeInput) 
 export async function getProjectState(ctx: OperationContext) {
   const goals = await ctx.nodes.getByType('goal');
   const active_goals = goals.filter(g => g.status === 'active');
+  const tasks = await ctx.nodes.getByType('task');
+  const open_tasks = tasks.filter(t => !['done', 'cancelled'].includes(t.status));
   const explorations = await ctx.nodes.getByTypeAndStatus('exploration', 'active');
   const recent_decisions = (await ctx.nodes.getByType('decision'))
     .filter(d => !['superseded', 'deprecated'].includes(d.status))
@@ -109,6 +111,7 @@ export async function getProjectState(ctx: OperationContext) {
 
   return {
     active_goals,
+    open_tasks,
     active_explorations: explorations,
     recent_decisions,
     open_risks,
@@ -118,6 +121,8 @@ export async function getProjectState(ctx: OperationContext) {
     statistics: {
       total_goals: goals.length,
       achieved_goals: goals.filter(g => g.status === 'achieved').length,
+      total_tasks: tasks.length,
+      done_tasks: tasks.filter(t => t.status === 'done').length,
       active_explorations: explorations.length,
       open_risks: open_risks.length,
       tech_debt_items: tech_debt.length,

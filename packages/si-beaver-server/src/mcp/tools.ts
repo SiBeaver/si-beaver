@@ -10,10 +10,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
   defineGoal, decomposeGoal, updateGoalStatus,
+  createTask, updateTaskStatus,
   beginExploration, recordExplorationFinding, concludeExploration, abandonExploration,
   recordDecision,
   defineRequirement, updateRequirementStatus,
-  defineCapability, updateCapability, getCockpit,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
   linkNodes, deleteNode, getProjectState, getNodeContext,
@@ -21,6 +21,7 @@ import {
   staleItems, currentBlockers, recentActivity, fullTextSearch,
   batchOperations,
   generateProjection, listProjectionTypes,
+  distillConversation,
   type OperationContext,
 } from '../index.js';
 import type { ProjectManager } from '../projects/index.js';
@@ -92,6 +93,8 @@ const operationHandlers: Record<string, (ctx: OperationContext, input: any) => P
   define_goal: defineGoal,
   decompose_goal: decomposeGoal,
   update_goal_status: updateGoalStatus,
+  create_task: createTask,
+  update_task_status: updateTaskStatus,
   begin_exploration: beginExploration,
   record_exploration_finding: recordExplorationFinding,
   conclude_exploration: concludeExploration,
@@ -99,8 +102,6 @@ const operationHandlers: Record<string, (ctx: OperationContext, input: any) => P
   record_decision: recordDecision,
   define_requirement: defineRequirement,
   update_requirement_status: updateRequirementStatus,
-  define_capability: defineCapability,
-  update_capability: updateCapability,
   identify_risk: identifyRisk,
   update_risk: updateRisk,
   register_tech_debt: registerTechDebt,
@@ -156,6 +157,25 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     reason: z.string().describe('变更原因'),
   }, log('update_goal_status', async (args) => {
     return jsonResult(await updateGoalStatus(getCtx(), args));
+  }));
+
+  // --- 任务 ---
+  server.tool('create_task', '创建一个任务（粒度：一个可交付的工作单元，如 feature/bugfix/spike，不是执行步骤）', {
+    title: z.string().describe('任务标题'),
+    description: z.string().optional().describe('详细描述'),
+    priority: z.enum(['critical', 'high', 'medium', 'low']).optional().describe('优先级'),
+    parent_goal: z.string().optional().describe('所属目标 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, log('create_task', async (args) => {
+    return jsonResult(await createTask(getCtx(), args));
+  }));
+
+  server.tool('update_task_status', '更新任务状态', {
+    task_id: z.string().describe('任务 ID'),
+    new_status: z.enum(['open', 'in_progress', 'done', 'cancelled']).describe('新状态'),
+    reason: z.string().optional().describe('变更原因'),
+  }, log('update_task_status', async (args) => {
+    return jsonResult(await updateTaskStatus(getCtx(), args));
   }));
 
   // --- 探索 ---
@@ -239,7 +259,6 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     priority: z.enum(['critical', 'high', 'medium', 'low']).optional().describe('优先级'),
     source: z.string().describe('来源（oral / specs-md / docs-md / issue / meeting）'),
     source_detail: z.string().optional().describe('来源详情'),
-    acceptance_criteria: z.array(z.string()).optional().describe('验收标准'),
     parent_goal: z.string().optional().describe('关联目标 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, log('define_requirement', async (args) => {
@@ -253,35 +272,6 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     revision_suggestion: z.string().optional().describe('修订建议（仅 revision_needed 时）'),
   }, log('update_requirement_status', async (args) => {
     return jsonResult(await updateRequirementStatus(getCtx(), args));
-  }));
-
-  // --- 能力 ---
-  server.tool('define_capability', '定义产品交付的一项能力', {
-    title: z.string().describe('能力标题'),
-    description: z.string().optional().describe('能力描述'),
-    maturity: z.enum(['planned', 'alpha', 'beta', 'stable', 'deprecated']).optional().describe('成熟度（默认 planned）'),
-    scope: z.string().optional().describe('能力边界说明'),
-    domain: z.string().optional().describe('能力域分组'),
-    acceptance_criteria: z.array(z.string()).optional().describe('验收标准'),
-    parent_capability: z.string().optional().describe('父能力 ID（子能力场景）'),
-    parent_goal: z.string().optional().describe('关联目标 ID'),
-    tags: z.array(z.string()).optional().describe('标签'),
-    focus: z.boolean().optional().describe('是否为当前迭代聚焦能力'),
-  }, log('define_capability', async (args) => {
-    return jsonResult(await defineCapability(getCtx(), args));
-  }));
-
-  server.tool('update_capability', '更新能力成熟度或定义', {
-    capability_id: z.string().describe('能力 ID'),
-    maturity: z.enum(['planned', 'alpha', 'beta', 'stable', 'deprecated']).optional().describe('新成熟度'),
-    scope: z.string().optional().describe('更新边界说明'),
-    acceptance_criteria: z.array(z.string()).optional().describe('更新验收标准'),
-    description: z.string().optional().describe('更新描述'),
-    domain: z.string().optional().describe('更新能力域'),
-    tags: z.array(z.string()).optional().describe('更新标签'),
-    focus: z.boolean().optional().describe('设置/取消当前迭代聚焦'),
-  }, log('update_capability', async (args) => {
-    return jsonResult(await updateCapability(getCtx(), args));
   }));
 
   // --- 风险与技术债 ---
@@ -330,6 +320,7 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     domain: z.string().describe('所属领域'),
     confidence: z.enum(['low', 'medium', 'high']).optional().describe('确信程度'),
     source: z.string().describe('来源'),
+    scope: z.enum(['project', 'domain']).optional().describe('知识范围：project=项目特定，domain=可跨项目复用的领域经验'),
     derived_from: z.array(z.string()).optional().describe('来源节点 ID'),
     invalidates: z.array(z.string()).optional().describe('被此知识取代的旧知识 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
@@ -368,13 +359,28 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     return jsonResult(await batchOperations(getCtx(), args, operationHandlers));
   }));
 
+  // --- 蒸馏 ---
+  server.tool('distill_conversation', '从对话中蒸馏 WHY 知识（决策/知识/风险），返回变更建议', {
+    messages: z.array(z.object({
+      role: z.string().describe('消息角色'),
+      content: z.string().describe('消息内容'),
+    })).optional().describe('对话消息列表'),
+    text: z.string().optional().describe('原始对话文本（与 messages 二选一）'),
+    focus_types: z.array(z.enum(['decision', 'knowledge', 'risk'])).optional()
+      .describe('限定提取的节点类型，默认全部'),
+  }, log('distill_conversation', async (args) => {
+    return jsonResult(await distillConversation(getCtx(), args));
+  }));
+
   // --- 读操作 ---
   server.tool('get_project_state', '获取项目认知状态快照', {}, log('get_project_state', async () => {
     return jsonResult(await getProjectState(getCtx()));
   }));
 
-  server.tool('cockpit', '驾驶舱视图：聚焦能力 + 进度 + 阻塞项', {}, log('cockpit', async () => {
-    return jsonResult(await getCockpit(getCtx()));
+  server.tool('cockpit', '驾驶舱视图：目标 + 进度 + 阻塞项', {}, log('cockpit', async () => {
+    const state = await getProjectState(getCtx());
+    const blockers = await currentBlockers(getCtx());
+    return jsonResult({ goals: state.active_goals, requirements: state.requirements, blockers: blockers.blockers });
   }));
 
   server.tool('get_node_context', '获取节点完整上下文', {
@@ -541,6 +547,27 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     return jsonResult(await updateGoalStatus(await ctx(project), args));
   }));
 
+  // --- 任务 ---
+  server.tool('create_task', '创建一个任务（粒度：一个可交付的工作单元，如 feature/bugfix/spike，不是执行步骤）', {
+    project: projectParam,
+    title: z.string().describe('任务标题'),
+    description: z.string().optional().describe('详细描述'),
+    priority: z.enum(['critical', 'high', 'medium', 'low']).optional().describe('优先级'),
+    parent_goal: z.string().optional().describe('所属目标 ID'),
+    tags: z.array(z.string()).optional().describe('标签'),
+  }, log('create_task', async ({ project, ...args }) => {
+    return jsonResult(await createTask(await ctx(project), args));
+  }));
+
+  server.tool('update_task_status', '更新任务状态', {
+    project: projectParam,
+    task_id: z.string().describe('任务 ID'),
+    new_status: z.enum(['open', 'in_progress', 'done', 'cancelled']).describe('新状态'),
+    reason: z.string().optional().describe('变更原因'),
+  }, log('update_task_status', async ({ project, ...args }) => {
+    return jsonResult(await updateTaskStatus(await ctx(project), args));
+  }));
+
   // --- 探索 ---
   server.tool('begin_exploration', '开始一个探索性调查', {
     project: projectParam,
@@ -628,7 +655,6 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     priority: z.enum(['critical', 'high', 'medium', 'low']).optional().describe('优先级'),
     source: z.string().describe('来源（oral / specs-md / docs-md / issue / meeting）'),
     source_detail: z.string().optional().describe('来源详情'),
-    acceptance_criteria: z.array(z.string()).optional().describe('验收标准'),
     parent_goal: z.string().optional().describe('关联目标 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
   }, log('define_requirement', async ({ project, ...args }) => {
@@ -643,37 +669,6 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     revision_suggestion: z.string().optional().describe('修订建议（仅 revision_needed 时）'),
   }, log('update_requirement_status', async ({ project, ...args }) => {
     return jsonResult(await updateRequirementStatus(await ctx(project), args));
-  }));
-
-  // --- 能力 ---
-  server.tool('define_capability', '定义产品交付的一项能力', {
-    project: projectParam,
-    title: z.string().describe('能力标题'),
-    description: z.string().optional().describe('能力描述'),
-    maturity: z.enum(['planned', 'alpha', 'beta', 'stable', 'deprecated']).optional().describe('成熟度（默认 planned）'),
-    scope: z.string().optional().describe('能力边界说明'),
-    domain: z.string().optional().describe('能力域分组'),
-    acceptance_criteria: z.array(z.string()).optional().describe('验收标准'),
-    parent_capability: z.string().optional().describe('父能力 ID（子能力场景）'),
-    parent_goal: z.string().optional().describe('关联目标 ID'),
-    tags: z.array(z.string()).optional().describe('标签'),
-    focus: z.boolean().optional().describe('是否为当前迭代聚焦能力'),
-  }, log('define_capability', async ({ project, ...args }) => {
-    return jsonResult(await defineCapability(await ctx(project), args));
-  }));
-
-  server.tool('update_capability', '更新能力成熟度或定义', {
-    project: projectParam,
-    capability_id: z.string().describe('能力 ID'),
-    maturity: z.enum(['planned', 'alpha', 'beta', 'stable', 'deprecated']).optional().describe('新成熟度'),
-    scope: z.string().optional().describe('更新边界说明'),
-    acceptance_criteria: z.array(z.string()).optional().describe('更新验收标准'),
-    description: z.string().optional().describe('更新描述'),
-    domain: z.string().optional().describe('更新能力域'),
-    tags: z.array(z.string()).optional().describe('更新标签'),
-    focus: z.boolean().optional().describe('设置/取消当前迭代聚焦'),
-  }, log('update_capability', async ({ project, ...args }) => {
-    return jsonResult(await updateCapability(await ctx(project), args));
   }));
 
   // --- 风险与技术债 ---
@@ -720,6 +715,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     title: z.string(), description: z.string(),
     domain: z.string(), source: z.string(),
     confidence: z.enum(['low', 'medium', 'high']).optional(),
+    scope: z.enum(['project', 'domain']).optional(),
     derived_from: z.array(z.string()).optional(),
     invalidates: z.array(z.string()).optional(),
     tags: z.array(z.string()).optional(),
@@ -760,13 +756,29 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     return jsonResult(await batchOperations(await ctx(project), args, operationHandlers));
   }));
 
+  // --- 蒸馏 ---
+  server.tool('distill_conversation', '从对话中蒸馏 WHY 知识（决策/知识/风险），返回变更建议', {
+    project: projectParam,
+    messages: z.array(z.object({
+      role: z.string().describe('消息角色'),
+      content: z.string().describe('消息内容'),
+    })).optional().describe('对话消息列表'),
+    text: z.string().optional().describe('原始对话文本（与 messages 二选一）'),
+    focus_types: z.array(z.enum(['decision', 'knowledge', 'risk'])).optional()
+      .describe('限定提取的节点类型，默认全部'),
+  }, log('distill_conversation', async ({ project, ...args }) => {
+    return jsonResult(await distillConversation(await ctx(project), args));
+  }));
+
   // --- 读操作 ---
   server.tool('get_project_state', '获取项目认知状态快照', { project: projectParam }, log('get_project_state', async ({ project }) => {
     return jsonResult(await getProjectState(await ctx(project)));
   }));
 
-  server.tool('cockpit', '驾驶舱视图：聚焦能力 + 进度 + 阻塞项', { project: projectParam }, log('cockpit', async ({ project }) => {
-    return jsonResult(await getCockpit(await ctx(project)));
+  server.tool('cockpit', '驾驶舱视图：目标 + 进度 + 阻塞项', { project: projectParam }, log('cockpit', async ({ project }) => {
+    const state = await getProjectState(await ctx(project));
+    const blockers = await currentBlockers(await ctx(project));
+    return jsonResult({ goals: state.active_goals, requirements: state.requirements, blockers: blockers.blockers });
   }));
 
   server.tool('get_node_context', '获取节点完整上下文', {

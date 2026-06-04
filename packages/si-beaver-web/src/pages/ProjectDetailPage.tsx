@@ -4,20 +4,16 @@ import { Typography, Button, Badge, theme, Space, Segmented } from 'antd';
 import { ReloadOutlined, ArrowLeftOutlined, MessageOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
-import { CockpitView } from '../components/cockpit/CockpitView';
 import { HelmView } from '../components/helm/HelmView';
 import { ArchitectView } from '../components/views/ArchitectView';
 import { DeveloperView } from '../components/views/DeveloperView';
 import { ReviewerView } from '../components/views/ReviewerView';
 import { ChatPanel } from '../components/chat/ChatPanel';
-import { CapabilityPanel } from '../components/capability/CapabilityPanel';
 import { clearToken } from '../lib/auth';
 import { fetchHelmSignals } from '../api/client';
-import type { CapabilityTreeNode } from '../api/client';
 import type { Tab } from '../lib/constants';
 
 const TAB_OPTIONS: { label: string; value: Tab }[] = [
-  { label: '驾驶舱', value: 'cockpit' },
   { label: '架构', value: 'architect' },
   { label: '开发', value: 'developer' },
   { label: '审查', value: 'reviewer' },
@@ -30,10 +26,9 @@ export function ProjectDetailPage() {
   const { mutate } = useSWRConfig();
   const [spinning, setSpinning] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const [selectedCapability, setSelectedCapability] = useState<CapabilityTreeNode | null>(null);
   const { token } = theme.useToken();
 
-  const activeTab = (tab as Tab) || 'cockpit';
+  const activeTab = (tab as Tab) || 'architect';
 
   const { data: helmData } = useSWR(
     `${slug}/helm-count`,
@@ -41,8 +36,6 @@ export function ProjectDetailPage() {
     { refreshInterval: 30_000 },
   );
   const alertCount = helmData?.signals?.length ?? 0;
-
-  const panelOpen = selectedCapability !== null || chatOpen;
 
   const handleRefresh = () => {
     setSpinning(true);
@@ -56,17 +49,11 @@ export function ProjectDetailPage() {
   };
 
   const handleToggleChat = () => {
-    if (chatOpen) {
-      setChatOpen(false);
-    } else {
-      setChatOpen(true);
-      setSelectedCapability(null);
-    }
+    setChatOpen(!chatOpen);
   };
 
   const handleTabChange = (value: string | number) => {
     navigate(`/${slug}/${value}`, { replace: true });
-    setSelectedCapability(null);
   };
 
   return (
@@ -98,15 +85,14 @@ export function ProjectDetailPage() {
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <div style={{ flex: 1, overflow: 'auto', padding: panelOpen ? 24 : 32 }}>
-          {activeTab === 'cockpit' && <CockpitView slug={slug!} onSelectCapability={setSelectedCapability} />}
+        <div style={{ flex: 1, overflow: 'auto', padding: chatOpen ? 24 : 32 }}>
           {activeTab === 'helm' && <HelmView slug={slug!} />}
           {activeTab === 'architect' && <ArchitectView slug={slug!} />}
           {activeTab === 'developer' && <DeveloperView slug={slug!} />}
           {activeTab === 'reviewer' && <ReviewerView slug={slug!} />}
         </div>
 
-        {panelOpen && (
+        {chatOpen && (
           <div style={{
             width: 380,
             borderLeft: `1px solid ${token.colorBorderSecondary}`,
@@ -114,18 +100,10 @@ export function ProjectDetailPage() {
             overflow: 'auto',
             flexShrink: 0,
           }}>
-            {selectedCapability && (
-              <CapabilityPanel
-                capability={selectedCapability}
-                onClose={() => setSelectedCapability(null)}
-              />
-            )}
-            {chatOpen && !selectedCapability && (
-              <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <Typography.Text strong style={{ marginBottom: 12 }}>对话</Typography.Text>
-                <ChatPanel slug={slug!} />
-              </div>
-            )}
+            <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Typography.Text strong style={{ marginBottom: 12 }}>对话</Typography.Text>
+              <ChatPanel slug={slug!} />
+            </div>
           </div>
         )}
       </div>

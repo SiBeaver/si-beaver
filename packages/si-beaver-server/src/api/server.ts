@@ -10,7 +10,6 @@ import {
   beginExploration, recordExplorationFinding, concludeExploration, abandonExploration,
   recordDecision,
   defineRequirement, updateRequirementStatus,
-  defineCapability, updateCapability, getCapabilityTree, getCockpit,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge, updateKnowledge, getKnowledgeTree, pinKnowledge, moveKnowledge,
   linkNodes, deleteNode, getProjectState, getNodeContext,
@@ -19,6 +18,7 @@ import {
   getHelmSignals,
   batchOperations,
   generateProjection, listProjectionTypes,
+  distillConversation,
 } from '../index.js';
 import { ProjectManager } from '../projects/index.js';
 import { startEmbedSync, getEmbedSyncStats } from '../jobs/embed-sync.js';
@@ -40,8 +40,6 @@ export const operationHandlers: Record<string, (ctx: OperationContext, input: an
   record_decision: recordDecision,
   define_requirement: defineRequirement,
   update_requirement_status: updateRequirementStatus,
-  define_capability: defineCapability,
-  update_capability: updateCapability,
   identify_risk: identifyRisk,
   update_risk: updateRisk,
   register_tech_debt: registerTechDebt,
@@ -236,35 +234,11 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     return json(c, await getKnowledgeTree(getCtx(slug)));
   });
 
-  app.get('/:project/api/v1/capabilities/tree', async (c) => {
-    const slug = c.req.param('project');
-    return json(c, await getCapabilityTree(getCtx(slug)));
-  });
-
   app.get('/:project/api/v1/cockpit', async (c) => {
     const slug = c.req.param('project');
-    return json(c, await getCockpit(getCtx(slug)));
-  });
-
-  app.get('/:project/api/v1/cockpit-view', async (c) => {
-    const slug = c.req.param('project');
-    const project = await manager.getProject(slug);
-    if (!project) return json(c, { error: 'Project not found' }, 404);
-    const config = project.metadata?.cockpitView as any;
-    if (!config) return json(c, { error: 'No cockpitView configured in project metadata' }, 404);
-
-    const { tree } = await getCapabilityTree(getCtx(slug));
-    const treeByTitle = new Map(tree.map(n => [n.title, n]));
-
-    const layers = (config.layers ?? []).map((layer: any) => ({
-      id: layer.id,
-      label: layer.label,
-      capabilities: (layer.capabilities ?? [])
-        .map((title: string) => treeByTitle.get(title))
-        .filter(Boolean),
-    }));
-
-    return json(c, { mode: config.mode, layers });
+    const state = await getProjectState(getCtx(slug));
+    const blockers = await currentBlockers(getCtx(slug));
+    return json(c, { goals: state.active_goals, requirements: state.requirements, blockers: blockers.blockers });
   });
 
   app.get('/:project/api/v1/stale', async (c) => {
@@ -540,6 +514,19 @@ ${existingSummary || '（暂无）'}
       }
 
       return json(c, { reply: llmRes.content, reasoning: llmRes.reasoning || null, saved });
+    } catch (e: any) {
+      return json(c, { error: e.message }, 500);
+    }
+  });
+
+  // === 对话蒸馏 ===
+
+  app.post('/:project/api/v1/conversation/distill', async (c) => {
+    const slug = c.req.param('project');
+    const body = await c.req.json();
+    try {
+      const result = await distillConversation(getCtx(slug), body);
+      return json(c, result);
     } catch (e: any) {
       return json(c, { error: e.message }, 500);
     }

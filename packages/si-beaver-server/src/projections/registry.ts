@@ -3,7 +3,6 @@ import { adrProjection } from './engines/adr.js';
 import { roadmapProjection } from './engines/roadmap.js';
 import { explorationProjection } from './engines/exploration.js';
 import { rtmProjection } from './engines/rtm.js';
-import { deliveryMapProjection } from './engines/delivery-map.js';
 
 const registry = new Map<string, ProjectionTemplate>();
 
@@ -24,4 +23,3 @@ registerProjection(adrProjection);
 registerProjection(roadmapProjection);
 registerProjection(explorationProjection);
 registerProjection(rtmProjection);
-registerProjection(deliveryMapProjection);
