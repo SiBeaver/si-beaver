@@ -1,6 +1,6 @@
 import type { CognitiveNode } from './types';
 
-export type Tab = 'helm' | 'architect' | 'developer' | 'reviewer';
+export type Tab = 'panoramic' | 'helm';
 
 export const NODE_TYPE_COLORS: Record<CognitiveNode['type'], string> = {
   goal: 'blue',

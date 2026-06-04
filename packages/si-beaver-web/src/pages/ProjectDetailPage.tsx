@@ -5,18 +5,14 @@ import { ReloadOutlined, ArrowLeftOutlined, MessageOutlined, LogoutOutlined } fr
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
 import { HelmView } from '../components/helm/HelmView';
-import { ArchitectView } from '../components/views/ArchitectView';
-import { DeveloperView } from '../components/views/DeveloperView';
-import { ReviewerView } from '../components/views/ReviewerView';
+import { PanoramicDashboard } from '../components/panoramic';
 import { ChatPanel } from '../components/chat/ChatPanel';
 import { clearToken } from '../lib/auth';
 import { fetchHelmSignals } from '../api/client';
 import type { Tab } from '../lib/constants';
 
 const TAB_OPTIONS: { label: string; value: Tab }[] = [
-  { label: '架构', value: 'architect' },
-  { label: '开发', value: 'developer' },
-  { label: '审查', value: 'reviewer' },
+  { label: '全景', value: 'panoramic' },
   { label: '信号', value: 'helm' },
 ];
 
@@ -28,7 +24,7 @@ export function ProjectDetailPage() {
   const [chatOpen, setChatOpen] = useState(false);
   const { token } = theme.useToken();
 
-  const activeTab = (tab as Tab) || 'architect';
+  const activeTab = (tab as Tab) || 'panoramic';
 
   const { data: helmData } = useSWR(
     `${slug}/helm-count`,
@@ -86,10 +82,8 @@ export function ProjectDetailPage() {
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, overflow: 'auto', padding: chatOpen ? 24 : 32 }}>
+          {activeTab === 'panoramic' && <PanoramicDashboard slug={slug!} />}
           {activeTab === 'helm' && <HelmView slug={slug!} />}
-          {activeTab === 'architect' && <ArchitectView slug={slug!} />}
-          {activeTab === 'developer' && <DeveloperView slug={slug!} />}
-          {activeTab === 'reviewer' && <ReviewerView slug={slug!} />}
         </div>
 
         {chatOpen && (

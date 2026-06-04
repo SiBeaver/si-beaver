@@ -15,7 +15,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/:slug',
-    element: <Navigate to="architect" replace />,
+    element: <Navigate to="panoramic" replace />,
   },
   {
     path: '/:slug/:tab',
