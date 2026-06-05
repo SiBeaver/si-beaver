@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Typography, Row, Col, Button, Empty, Spin, theme, Space } from 'antd';
-import { PlusOutlined, FolderOutlined, LogoutOutlined } from '@ant-design/icons';
+import { Card, Typography, Row, Col, Button, Empty, Spin, theme, Space, Modal } from 'antd';
+import { PlusOutlined, FolderOutlined, LogoutOutlined, DeleteOutlined } from '@ant-design/icons';
 import useSWR from 'swr';
-import { fetchProjects } from '../api/client';
+import { fetchProjects, deleteProject } from '../api/client';
 import { CreateProjectModal } from '../components/projects/CreateProjectModal';
 import { clearToken } from '../lib/auth';
 import type { ProjectMeta } from '../lib/types';
@@ -17,6 +17,21 @@ export function ProjectsPage() {
   const handleLogout = () => {
     clearToken();
     navigate('/login', { replace: true });
+  };
+
+  const handleDelete = (project: ProjectMeta, e: React.MouseEvent) => {
+    e.stopPropagation();
+    Modal.confirm({
+      title: '删除项目',
+      content: `确定删除项目「${project.name}」？此操作不可撤销，将永久删除该项目下的所有数据。`,
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        await deleteProject(project.slug);
+        mutate();
+      },
+    });
   };
 
   if (isLoading) {
@@ -52,8 +67,16 @@ export function ProjectsPage() {
                 <Card
                   hoverable
                   onClick={() => navigate(`/${project.slug}`)}
-                  style={{ height: '100%' }}
+                  style={{ height: '100%', position: 'relative' }}
                 >
+                  <Button
+                    type="text"
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={(e) => handleDelete(project, e)}
+                    style={{ position: 'absolute', top: 8, right: 8 }}
+                  />
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                     <div style={{
                       width: 36,

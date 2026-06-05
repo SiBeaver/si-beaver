@@ -135,7 +135,7 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
 
   app.delete('/api/v1/projects/:slug', async (c) => {
     const slug = c.req.param('slug');
-    await manager.archiveProject(slug);
+    await manager.deleteProject(slug);
     return c.body(null, 204);
   });
 

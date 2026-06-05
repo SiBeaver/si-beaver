@@ -13,6 +13,7 @@ async function handleResponse(res: Response) {
     window.location.href = '/login';
     throw new Error('Unauthorized');
   }
+  if (res.status === 204) return null;
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res;
 }
@@ -23,8 +24,9 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
     headers: body ? { 'Content-Type': 'application/json', ...authHeaders() } : authHeaders(),
     body: body ? JSON.stringify(body) : undefined,
   });
-  await handleResponse(res);
-  return res.json() as Promise<T>;
+  const handled = await handleResponse(res);
+  if (handled === null) return null as T;
+  return handled.json() as Promise<T>;
 }
 
 async function get<T>(url: string): Promise<T> {
@@ -37,6 +39,10 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 
 async function patch<T>(url: string, body: unknown): Promise<T> {
   return request<T>('PATCH', url, body);
+}
+
+async function del(url: string): Promise<void> {
+  await request<null>('DELETE', url);
 }
 
 // --- Project management ---
@@ -55,6 +61,10 @@ export function createProject(input: { slug: string; name: string; description?:
 
 export function updateProject(slug: string, body: { name?: string; description?: string }) {
   return patch<ProjectMeta>(`/api/v1/projects/${slug}`, body);
+}
+
+export function deleteProject(slug: string) {
+  return del(`/api/v1/projects/${slug}`);
 }
 
 // --- Project-scoped data ---

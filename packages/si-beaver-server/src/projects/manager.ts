@@ -53,6 +53,11 @@ export class ProjectManager {
     this.contexts.delete(slug);
   }
 
+  async deleteProject(slug: string): Promise<void> {
+    await this.registry.deleteProject(slug);
+    this.contexts.delete(slug);
+  }
+
   async getDefaultProject(): Promise<string> {
     return process.env.SI_BEAVER_DEFAULT_PROJECT
       ?? await this.registry.getConfig('default_project')

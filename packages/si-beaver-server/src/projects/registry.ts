@@ -57,6 +57,15 @@ export class Registry {
     `;
   }
 
+  async deleteProject(slug: string): Promise<void> {
+    await this.sql.begin(async (sql) => {
+      await sql`DELETE FROM edges WHERE project_id = ${slug}`;
+      await sql`DELETE FROM events WHERE project_id = ${slug}`;
+      await sql`DELETE FROM nodes WHERE project_id = ${slug}`;
+      await sql`DELETE FROM projects WHERE slug = ${slug}`;
+    });
+  }
+
   async getConfig(key: string): Promise<string | null> {
     const rows = await this.sql`SELECT value FROM config WHERE key = ${key}`;
     return rows.length > 0 ? rows[0].value : null;
