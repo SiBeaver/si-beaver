@@ -22,6 +22,7 @@ import {
 } from '../index.js';
 import { ProjectManager } from '../projects/index.js';
 import { startEmbedSync, getEmbedSyncStats } from '../jobs/embed-sync.js';
+import { generateEmbeddings, getEmbeddingConfig } from '../embedding/client.js';
 import { snakeToCamel, camelToSnake, kebabToSnake } from './transforms.js';
 import { triggerAutoLink, AUTO_LINK_OPERATIONS } from '../auto-link/index.js';
 
@@ -190,6 +191,23 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     const q = c.req.query('q');
     if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
     return json(c, await getCtx(slug).nodes.search(q));
+  });
+
+  app.get('/:project/api/v1/search/semantic', async (c) => {
+    const slug = c.req.param('project');
+    const q = c.req.query('q');
+    if (!q) return json(c, { error: 'Missing query parameter "q"' }, 400);
+    if (!getEmbeddingConfig()) {
+      return json(c, { error: 'Semantic search unavailable: EMBEDDING_API_KEY not configured' }, 503);
+    }
+    const topK = Math.min(Number(c.req.query('top_k')) || 10, 50);
+    try {
+      const [vec] = await generateEmbeddings([q]);
+      const results = await getCtx(slug).nodes.similaritySearch(vec, topK);
+      return json(c, results);
+    } catch (e: any) {
+      return json(c, { error: e.message }, 500);
+    }
   });
 
   app.get('/:project/api/v1/events', async (c) => {
