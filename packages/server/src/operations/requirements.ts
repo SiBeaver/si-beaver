@@ -1,7 +1,7 @@
 import { ulid } from 'ulidx';
 import type { OperationContext } from './context.js';
 import type { Edge } from '../edges/types.js';
-import type { RequirementNode, Acceptance } from '../nodes/types.js';
+import type { RequirementNode, Acceptance, RequirementStatus } from '../nodes/types.js';
 import { isValidTransition, REQUIREMENT_TRANSITIONS } from '../lifecycle/machines.js';
 
 // ============================================================
@@ -17,6 +17,7 @@ export interface DefineRequirementInput {
   parent_goal?: string;
   tags?: string[];
   acceptance?: Acceptance;
+  status?: RequirementStatus;
 }
 
 export async function defineRequirement(ctx: OperationContext, input: DefineRequirementInput) {
@@ -26,7 +27,7 @@ export async function defineRequirement(ctx: OperationContext, input: DefineRequ
     type: 'requirement',
     title: input.title,
     description: input.description ?? '',
-    status: 'proposed',
+    status: input.status ?? 'proposed',
     tags: input.tags ?? [],
     created_at: now,
     updated_at: now,

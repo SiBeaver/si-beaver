@@ -270,6 +270,7 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
         satisfied: z.boolean().optional().describe('是否已满足'),
       })),
     }).optional().describe('验收标准（checklist 格式）'),
+    status: z.enum(['proposed', 'accepted', 'in_execution', 'revision_needed', 'satisfied', 'deprecated']).optional().describe('初始状态（默认 proposed，sync 时可指定）'),
   }, log('define_requirement', async (args) => {
     return jsonResult(await defineRequirement(getCtx(), args));
   }));
@@ -697,6 +698,7 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
         satisfied: z.boolean().optional().describe('是否已满足'),
       })),
     }).optional().describe('验收标准（checklist 格式）'),
+    status: z.enum(['proposed', 'accepted', 'in_execution', 'revision_needed', 'satisfied', 'deprecated']).optional().describe('初始状态（默认 proposed，sync 时可指定）'),
   }, log('define_requirement', async ({ project, ...args }) => {
     return jsonResult(await defineRequirement(await ctx(project), args));
   }));
