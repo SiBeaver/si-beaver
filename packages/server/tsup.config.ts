@@ -12,4 +12,7 @@ export default defineConfig({
   dts: !process.env.SKIP_DTS,
   clean: true,
   sourcemap: true,
+  noExternal: [/.*/],
+  external: ['node:*'],
+  splitting: false,
 });

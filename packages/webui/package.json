@@ -1,5 +1,5 @@
 {
-  "name": "@si-beaver/web",
+  "name": "@si-beaver/webui",
   "version": "0.2.0",
   "private": true,
   "description": "AI-native cognitive engine dashboard",

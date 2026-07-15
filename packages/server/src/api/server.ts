@@ -22,9 +22,17 @@ import {
 } from '../index.js';
 import { ProjectManager } from '../projects/index.js';
 import { startEmbedSync, getEmbedSyncStats } from '../jobs/embed-sync.js';
+import { startLinkRepair, getLinkRepairStats } from '../jobs/link-repair.js';
+import { startPoller, onEvent, setDirectEventSource } from '../event-poller.js';
+import type { DirectEventSource } from '../event-poller.js';
+import { setDirectSibs } from '../sibs-client.js';
+import type { DirectSibsContext } from '../sibs-client.js';
+import { config } from '../config/index.js';
 import { generateEmbeddings, getEmbeddingConfig } from '../embedding/client.js';
 import { snakeToCamel, camelToSnake, kebabToSnake } from './transforms.js';
 import { triggerAutoLink, AUTO_LINK_OPERATIONS } from '../auto-link/index.js';
+import { handleRequirementAccepted } from '../policies/triggers/requirement-trigger.js';
+import { handleKnowledgeRecorded } from '../policies/self-heal.js';
 
 // ============================================================
 // 操作处理器注册表（导出供 direct-mode 调用方使用）
@@ -586,6 +594,138 @@ ${existingSummary || '（暂无）'}
     }
   });
 
+  // === Cloud 路由（原 si-beaver-cloud）===
+
+  app.get('/health', (c) => c.json({
+    status: 'ok',
+    service: 'sibeaver',
+    version: '0.2.0',
+    uptime: process.uptime(),
+  }));
+
+  app.get('/api/v1/config', (c) => c.json({
+    sibsProject: config.sibsProject,
+    llmModel: config.llmModel,
+    pollInterval: config.pollInterval,
+  }));
+
+  app.get('/api/v1/stats/link-repair', (c) => c.json(getLinkRepairStats()));
+
+  app.post('/api/v1/policies/from-requirement', async (c) => {
+    const body = await c.req.json();
+    const requirementId = body.requirementId;
+    if (!requirementId) return c.json({ error: 'requirementId is required' }, 400);
+
+    const fakeEvent = {
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      eventType: 'requirement.status_changed',
+      actor: 'system',
+      operation: 'trigger-policy',
+      nodeId: requirementId,
+      nodeType: 'requirement',
+      payload: {},
+      diff: [{ field: 'status', oldValue: 'proposed', newValue: 'accepted' }],
+      context: null,
+    };
+
+    handleRequirementAccepted(fakeEvent as any).catch(err => {
+      console.error('[policies/from-requirement] error:', err);
+    });
+
+    return c.json({ message: 'policy triggered', requirementId }, 202);
+  });
+
+  app.post('/api/v1/distill/refine', async (c) => {
+    const body = await c.req.json();
+    const { requirementId, message } = body;
+    if (!requirementId) return c.json({ error: 'requirementId is required' }, 400);
+    if (!message) return c.json({ error: 'message is required' }, 400);
+
+    const { sibs } = await import('../sibs-client.js');
+    const { chatCompletion } = await import('../llm-client.js');
+    const ctx = await sibs.getNodeContext(requirementId);
+    const node = ctx.node as any;
+    if (!node) return c.json({ error: 'requirement not found' }, 404);
+
+    const state = await sibs.getProjectState();
+
+    const messages = [
+      {
+        role: 'system',
+        content: `你是 Distill Agent，负责帮助用户精炼需求。你的职责：
+1. 分析需求的 WHY 是否清晰（来源、动机、裁剪理由）
+2. 检测与现有需求的潜在冲突
+3. 识别缺失的维度
+4. 建议补充描述
+
+当前项目有 ${state.requirements.length} 个需求。
+
+当前需求：
+标题: ${node.title}
+描述: ${node.description || '无'}
+来源: ${node.source ?? '未知'}
+状态: ${node.status}
+
+现有已接受的需求（用于冲突检测）：
+${state.requirements.filter((r: any) => r.id !== requirementId).map((r: any) => `- ${r.title}`).join('\n') || '无'}
+
+请用中文回答，给出具体可操作的建议。`,
+      },
+      { role: 'user', content: message },
+    ];
+
+    const response = await chatCompletion(messages as any);
+    return c.json({ reply: response.content, usage: response.usage });
+  });
+
+  app.post('/api/v1/distill/check-conflicts', async (c) => {
+    const body = await c.req.json();
+    const { requirementId } = body;
+    if (!requirementId) return c.json({ error: 'requirementId is required' }, 400);
+
+    const { sibs } = await import('../sibs-client.js');
+    const { chatCompletion } = await import('../llm-client.js');
+    const ctx = await sibs.getNodeContext(requirementId);
+    const node = ctx.node as any;
+    if (!node) return c.json({ error: 'requirement not found' }, 404);
+
+    const state = await sibs.getProjectState();
+    const others = state.requirements.filter(
+      (r: any) => r.id !== requirementId && !['deprecated', 'satisfied'].includes(r.status)
+    );
+
+    if (others.length === 0) {
+      return c.json({ requirementId, conflicts: [], message: '无其他活跃需求' });
+    }
+
+    const messages = [
+      {
+        role: 'system',
+        content: `分析以下需求是否与现有需求存在冲突或重叠。输出 JSON:
+{ "conflicts": [{ "id": "...", "title": "...", "overlap": "high|medium|low", "reason": "..." }] }
+只报告 medium 或 high 重叠的。`,
+      },
+      {
+        role: 'user',
+        content: `目标需求:
+标题: ${node.title}
+描述: ${node.description || '无'}
+
+现有需求:
+${others.map((r: any) => `- [${r.id.slice(0, 8)}] ${r.title}: ${r.description || '无描述'}`).join('\n')}`,
+      },
+    ];
+
+    try {
+      const result = await chatCompletion(messages as any, { temperature: 0.2 });
+      const parsed = JSON.parse(result.content);
+      return c.json({ requirementId, ...parsed });
+    } catch {
+      return c.json({ requirementId, conflicts: [], error: 'LLM parse failed' });
+    }
+  });
+
   return app;
 }
 
@@ -606,20 +746,33 @@ export function createSiBeaverApp(authToken?: string): SiBeaverApp {
 }
 
 // ============================================================
-// start — 独立模式：创建 HTTP server 并启动
+// start — 独立模式：创建 HTTP server 并启动（含 cloud 事件总线）
 // ============================================================
 
 async function start() {
-  const AUTH_TOKEN = process.env.SI_BEAVER_AUTH_TOKEN;
-  if (!AUTH_TOKEN) {
-    console.error('FATAL: SI_BEAVER_AUTH_TOKEN environment variable is required');
-    process.exit(1);
+  const authToken = process.env.AUTH_TOKEN || process.env.SI_BEAVER_AUTH_TOKEN;
+  if (authToken) {
+    console.log('[sibs] Auth token configured');
+  } else {
+    console.warn('[sibs] No AUTH_TOKEN set — API routes will be unauthenticated');
   }
 
-  const { app, manager, handleMcpRequest } = createSiBeaverApp(AUTH_TOKEN);
+  const { app, manager, handleMcpRequest } = createSiBeaverApp(authToken);
 
   await manager.init();
   startEmbedSync(manager);
+  startLinkRepair(manager);
+
+  const projectSlug = config.sibsProject || await manager.getDefaultProject();
+  console.log(`[sibs] project=${projectSlug}`);
+
+  // Direct-mode bridges — policies call sibs.* without HTTP roundtrip
+  setDirectSibs(buildDirectSibs(manager, projectSlug));
+  setDirectEventSource(buildDirectEventSource(manager, projectSlug));
+
+  // Cloud event handlers
+  onEvent('requirement.status_changed', handleRequirementAccepted);
+  onEvent('knowledge.recorded', handleKnowledgeRecorded);
 
   const honoListener = getRequestListener(app.fetch);
   const MCP_PATH = /^\/([a-z0-9][a-z0-9-]*[a-z0-9]|[a-z0-9])\/mcp$/;
@@ -641,11 +794,13 @@ async function start() {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', '*');
 
-      const auth = req.headers['authorization'];
-      if (auth !== `Bearer ${AUTH_TOKEN}`) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Unauthorized' }));
-        return;
+      if (authToken) {
+        const auth = req.headers['authorization'];
+        if (auth !== `Bearer ${authToken}`) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
       }
 
       const handled = await handleMcpRequest(req, res, manager);
@@ -658,29 +813,82 @@ async function start() {
   httpServer.timeout = 0;
   httpServer.keepAliveTimeout = 120_000;
 
-  const PORT = Number(process.env.SI_BEAVER_PORT) || 7420;
+  const PORT = Number(process.env.PORT) || Number(process.env.SI_BEAVER_PORT) || 7420;
 
   httpServer.listen(PORT, () => {
-    console.log(`si-beaver running at http://localhost:${PORT} (REST + MCP unified)`);
+    console.log(`sibs running at http://localhost:${PORT}`);
     console.log(`  REST API: http://localhost:${PORT}/{project}/api/v1/...`);
     console.log(`  MCP:      http://localhost:${PORT}/{project}/mcp`);
-    console.log(`  Auth:     Bearer token ENABLED`);
+
+    startPoller();
   });
 
   // Graceful shutdown
   const shutdown = (signal: string) => {
-    console.log(`[server] Received ${signal}, shutting down...`);
+    console.log(`[sibs] Received ${signal}, shutting down...`);
     httpServer.close(() => {
-      console.log('[server] HTTP server closed');
+      console.log('[sibs] HTTP server closed');
       process.exit(0);
     });
     setTimeout(() => {
-      console.error('[server] Forced shutdown after timeout');
+      console.error('[sibs] Forced shutdown after timeout');
       process.exit(1);
     }, 15000).unref();
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+// ============================================================
+// Direct-mode bridges — 将 operationHandlers 桥接到 sibs 接口
+// ============================================================
+
+function buildDirectSibs(manager: ProjectManager, slug: string): DirectSibsContext {
+  const getCtx = () => manager.getContext(slug);
+
+  return {
+    getProjectState: () => getProjectState(getCtx()) as any,
+    getNodeContext: (nodeId: string) => getNodeContext(getCtx(), nodeId) as any,
+
+    getEvents: async (since?: string, limit = 50) => {
+      const ctx = getCtx();
+      if (since) {
+        const events = await ctx.eventStore.getSince(since);
+        return { events: events as any[] };
+      }
+      const events = await ctx.eventStore.getRecent(limit);
+      return { events: events as any[] };
+    },
+
+    defineGoal: (input: any) =>
+      operationHandlers.define_goal(getCtx(), camelToSnake(input)),
+
+    updateRequirementStatus: (input: any) =>
+      operationHandlers.update_requirement_status(getCtx(), camelToSnake(input)),
+
+    linkNodes: (input: any) =>
+      operationHandlers.link_nodes(getCtx(), camelToSnake(input)),
+
+    recordKnowledge: (input: any) =>
+      operationHandlers.record_knowledge(getCtx(), camelToSnake(input)),
+
+    identifyRisk: (input: any) =>
+      operationHandlers.identify_risk(getCtx(), camelToSnake(input)),
+  };
+}
+
+function buildDirectEventSource(manager: ProjectManager, slug: string): DirectEventSource {
+  return {
+    getEvents: async (since?: string, limit = 50) => {
+      const ctx = manager.getContext(slug);
+      if (since) {
+        const events = await ctx.eventStore.getSince(since);
+        return { events: events as any[] };
+      }
+      const events = await ctx.eventStore.getRecent(limit);
+      return { events: events as any[] };
+    },
+  };
 }
 
 function isMainModule(): boolean {
