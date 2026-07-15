@@ -34,6 +34,8 @@ import { triggerAutoLink, AUTO_LINK_OPERATIONS } from '../auto-link/index.js';
 import { handleRequirementAccepted } from '../policies/triggers/requirement-trigger.js';
 import { handleKnowledgeRecorded } from '../policies/self-heal.js';
 import { evaluateAcceptanceGap, evaluateAllAcceptanceGaps } from '../policies/acceptance-evaluator.js';
+import { evaluateConstraints, summarizeResults } from '../policies/constraint-evaluator.js';
+import type { Constraint, EvidenceInput } from '../constraints/types.js';
 
 // ============================================================
 // 操作处理器注册表（导出供 direct-mode 调用方使用）
@@ -294,6 +296,15 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
     const slug = c.req.param('project');
     const gaps = await evaluateAllAcceptanceGaps(getCtx(slug));
     return json(c, { gaps });
+  });
+
+  app.post('/:project/api/v1/constraints/evaluate', async (c) => {
+    const slug = c.req.param('project');
+    const body = await c.req.json();
+    const constraints = (body.constraints ?? []) as Constraint[];
+    const evidence = (body.evidence ?? {}) as EvidenceInput;
+    const results = await evaluateConstraints(constraints, evidence, getCtx(slug));
+    return json(c, { results, summary: summarizeResults(results) });
   });
 
   app.get('/:project/api/v1/helm', async (c) => {

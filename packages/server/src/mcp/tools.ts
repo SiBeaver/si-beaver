@@ -27,6 +27,7 @@ import {
 import type { ProjectManager } from '../projects/index.js';
 import { snakeToCamel } from '../api/transforms.js';
 import { evaluateAcceptanceGap, evaluateAllAcceptanceGaps } from '../policies/acceptance-evaluator.js';
+import { evaluateConstraints, summarizeResults } from '../policies/constraint-evaluator.js';
 
 /** Wrap result: apply camelCase transform + JSON serialize for MCP text output */
 function jsonResult(data: unknown) {
@@ -305,6 +306,27 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
       return jsonResult(await evaluateAcceptanceGap(getCtx(), args.requirement_id));
     }
     return jsonResult({ gaps: await evaluateAllAcceptanceGaps(getCtx()) });
+  }));
+
+  server.tool('evaluate_constraint', '评估约束是否满足（需要提供 evidence 数据）', {
+    constraints: z.array(z.object({
+      id: z.string().describe('约束 ID'),
+      title: z.string().describe('约束名称'),
+      dimension: z.enum(['security', 'performance', 'compliance', 'cost', 'reliability', 'quality']),
+      severity: z.enum(['critical', 'high', 'medium', 'low']),
+      description: z.string(),
+      condition: z.record(z.unknown()).describe('条件对象，evidence_type: metric|code_pattern|test_result|sibs_query'),
+    })).describe('约束列表'),
+    evidence: z.object({
+      metrics: z.record(z.number()).optional().describe('指标实测值，key 为 metric 名称'),
+      pattern_results: z.record(z.object({
+        matched: z.number(),
+        total: z.number(),
+      })).optional().describe('代码模式匹配结果，key 为约束 ID'),
+    }).optional().describe('证据数据'),
+  }, log('evaluate_constraint', async (args) => {
+    const results = await evaluateConstraints(args.constraints, args.evidence ?? {}, getCtx());
+    return jsonResult({ results, summary: summarizeResults(results) });
   }));
 
   // --- 风险与技术债 ---
@@ -737,6 +759,29 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
       return jsonResult(await evaluateAcceptanceGap(c, args.requirement_id));
     }
     return jsonResult({ gaps: await evaluateAllAcceptanceGaps(c) });
+  }));
+
+  server.tool('evaluate_constraint', '评估约束是否满足（需要提供 evidence 数据）', {
+    project: projectParam,
+    constraints: z.array(z.object({
+      id: z.string().describe('约束 ID'),
+      title: z.string().describe('约束名称'),
+      dimension: z.enum(['security', 'performance', 'compliance', 'cost', 'reliability', 'quality']),
+      severity: z.enum(['critical', 'high', 'medium', 'low']),
+      description: z.string(),
+      condition: z.record(z.unknown()).describe('条件对象，evidence_type: metric|code_pattern|test_result|sibs_query'),
+    })).describe('约束列表'),
+    evidence: z.object({
+      metrics: z.record(z.number()).optional().describe('指标实测值，key 为 metric 名称'),
+      pattern_results: z.record(z.object({
+        matched: z.number(),
+        total: z.number(),
+      })).optional().describe('代码模式匹配结果，key 为约束 ID'),
+    }).optional().describe('证据数据'),
+  }, log('evaluate_constraint', async ({ project, ...args }) => {
+    const c = await ctx(project);
+    const results = await evaluateConstraints(args.constraints, args.evidence ?? {}, c);
+    return jsonResult({ results, summary: summarizeResults(results) });
   }));
 
   // --- 风险与技术债 ---
