@@ -13,7 +13,7 @@ import {
   createTask, updateTaskStatus,
   beginExploration, recordExplorationFinding, concludeExploration, abandonExploration,
   recordDecision,
-  defineRequirement, updateRequirementStatus,
+  defineRequirement, updateRequirementStatus, updateRequirementAcceptance,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge,
   linkNodes, deleteNode, getProjectState, getNodeContext,
@@ -26,6 +26,7 @@ import {
 } from '../index.js';
 import type { ProjectManager } from '../projects/index.js';
 import { snakeToCamel } from '../api/transforms.js';
+import { evaluateAcceptanceGap, evaluateAllAcceptanceGaps } from '../policies/acceptance-evaluator.js';
 
 /** Wrap result: apply camelCase transform + JSON serialize for MCP text output */
 function jsonResult(data: unknown) {
@@ -261,6 +262,14 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     source_detail: z.string().optional().describe('来源详情'),
     parent_goal: z.string().optional().describe('关联目标 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
+    acceptance: z.object({
+      type: z.literal('checklist'),
+      items: z.array(z.object({
+        id: z.string().describe('条目 ID'),
+        label: z.string().describe('条目描述'),
+        satisfied: z.boolean().optional().describe('是否已满足'),
+      })),
+    }).optional().describe('验收标准（checklist 格式）'),
   }, log('define_requirement', async (args) => {
     return jsonResult(await defineRequirement(getCtx(), args));
   }));
@@ -272,6 +281,29 @@ function registerScopedTools(server: McpServer, opts: ScopedToolsOptions): void 
     revision_suggestion: z.string().optional().describe('修订建议（仅 revision_needed 时）'),
   }, log('update_requirement_status', async (args) => {
     return jsonResult(await updateRequirementStatus(getCtx(), args));
+  }));
+
+  server.tool('update_requirement_acceptance', '更新需求验收标准', {
+    requirement_id: z.string().describe('需求 ID'),
+    acceptance: z.object({
+      type: z.literal('checklist'),
+      items: z.array(z.object({
+        id: z.string().describe('条目 ID'),
+        label: z.string().describe('条目描述'),
+        satisfied: z.boolean().optional().describe('是否已满足'),
+      })),
+    }).describe('验收标准（checklist 格式）'),
+  }, log('update_requirement_acceptance', async (args) => {
+    return jsonResult(await updateRequirementAcceptance(getCtx(), args));
+  }));
+
+  server.tool('evaluate_gap', '评估需求的验收 Gap（未满足的验收项）', {
+    requirement_id: z.string().optional().describe('需求 ID。不传则评估所有有验收标准的需求'),
+  }, log('evaluate_gap', async (args) => {
+    if (args.requirement_id) {
+      return jsonResult(await evaluateAcceptanceGap(getCtx(), args.requirement_id));
+    }
+    return jsonResult({ gaps: await evaluateAllAcceptanceGaps(getCtx()) });
   }));
 
   // --- 风险与技术债 ---
@@ -657,6 +689,14 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     source_detail: z.string().optional().describe('来源详情'),
     parent_goal: z.string().optional().describe('关联目标 ID'),
     tags: z.array(z.string()).optional().describe('标签'),
+    acceptance: z.object({
+      type: z.literal('checklist'),
+      items: z.array(z.object({
+        id: z.string().describe('条目 ID'),
+        label: z.string().describe('条目描述'),
+        satisfied: z.boolean().optional().describe('是否已满足'),
+      })),
+    }).optional().describe('验收标准（checklist 格式）'),
   }, log('define_requirement', async ({ project, ...args }) => {
     return jsonResult(await defineRequirement(await ctx(project), args));
   }));
@@ -669,6 +709,32 @@ function registerGlobalTools(server: McpServer, manager: ProjectManager): void {
     revision_suggestion: z.string().optional().describe('修订建议（仅 revision_needed 时）'),
   }, log('update_requirement_status', async ({ project, ...args }) => {
     return jsonResult(await updateRequirementStatus(await ctx(project), args));
+  }));
+
+  server.tool('update_requirement_acceptance', '更新需求验收标准', {
+    project: projectParam,
+    requirement_id: z.string().describe('需求 ID'),
+    acceptance: z.object({
+      type: z.literal('checklist'),
+      items: z.array(z.object({
+        id: z.string().describe('条目 ID'),
+        label: z.string().describe('条目描述'),
+        satisfied: z.boolean().optional().describe('是否已满足'),
+      })),
+    }).describe('验收标准（checklist 格式）'),
+  }, log('update_requirement_acceptance', async ({ project, ...args }) => {
+    return jsonResult(await updateRequirementAcceptance(await ctx(project), args));
+  }));
+
+  server.tool('evaluate_gap', '评估需求的验收 Gap（未满足的验收项）', {
+    project: projectParam,
+    requirement_id: z.string().optional().describe('需求 ID。不传则评估所有有验收标准的需求'),
+  }, log('evaluate_gap', async ({ project, ...args }) => {
+    const c = await ctx(project);
+    if (args.requirement_id) {
+      return jsonResult(await evaluateAcceptanceGap(c, args.requirement_id));
+    }
+    return jsonResult({ gaps: await evaluateAllAcceptanceGaps(c) });
   }));
 
   // --- 风险与技术债 ---

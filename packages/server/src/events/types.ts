@@ -34,6 +34,7 @@ export const EventType = z.enum([
   'requirement.defined',
   'requirement.status_changed',
   'requirement.revision_suggested',
+  'requirement.acceptance_updated',
   // Graph
   'graph.edge_created',
   'graph.edge_removed',

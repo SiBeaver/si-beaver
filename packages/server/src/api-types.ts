@@ -54,12 +54,26 @@ export interface ApiTaskNode extends ApiNode {
   priority: Priority;
 }
 
+export interface ApiAcceptanceItem {
+  id: string;
+  label: string;
+  satisfied: boolean;
+}
+
+export interface ApiChecklistAcceptance {
+  type: 'checklist';
+  items: ApiAcceptanceItem[];
+}
+
+export type ApiAcceptance = ApiChecklistAcceptance | null;
+
 export interface ApiRequirementNode extends ApiNode {
   type: 'requirement';
   status: RequirementStatus;
   priority: Priority;
   source: string;
   sourceDetail: string | null;
+  acceptance: ApiAcceptance;
 }
 
 export interface ApiKnowledgeNode extends ApiNode {

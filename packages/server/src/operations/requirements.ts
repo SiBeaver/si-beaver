@@ -1,7 +1,7 @@
 import { ulid } from 'ulidx';
 import type { OperationContext } from './context.js';
 import type { Edge } from '../edges/types.js';
-import type { RequirementNode } from '../nodes/types.js';
+import type { RequirementNode, Acceptance } from '../nodes/types.js';
 import { isValidTransition, REQUIREMENT_TRANSITIONS } from '../lifecycle/machines.js';
 
 // ============================================================
@@ -16,6 +16,7 @@ export interface DefineRequirementInput {
   source_detail?: string;
   parent_goal?: string;
   tags?: string[];
+  acceptance?: Acceptance;
 }
 
 export async function defineRequirement(ctx: OperationContext, input: DefineRequirementInput) {
@@ -33,6 +34,7 @@ export async function defineRequirement(ctx: OperationContext, input: DefineRequ
     priority: input.priority ?? 'medium',
     source: input.source,
     source_detail: input.source_detail ?? null,
+    acceptance: input.acceptance ?? null,
   };
 
   await ctx.nodes.insert(requirement);
@@ -116,6 +118,43 @@ export async function updateRequirementStatus(ctx: OperationContext, input: Upda
     },
     diff: [{ field: 'status', old_value: oldStatus, new_value: input.new_status }],
     context: input.reason,
+  });
+
+  return { requirement: updated, event };
+}
+
+// ============================================================
+// update_requirement_acceptance — 更新需求验收标准
+// ============================================================
+
+export interface UpdateRequirementAcceptanceInput {
+  requirement_id: string;
+  acceptance: Acceptance;
+}
+
+export async function updateRequirementAcceptance(ctx: OperationContext, input: UpdateRequirementAcceptanceInput) {
+  const node = await ctx.nodes.getById(input.requirement_id);
+  if (!node || node.type !== 'requirement') {
+    throw new Error(`Requirement not found: ${input.requirement_id}`);
+  }
+
+  const requirement = node as RequirementNode;
+  const oldAcceptance = requirement.acceptance;
+  const now = new Date().toISOString();
+  const updated: RequirementNode = {
+    ...requirement,
+    acceptance: input.acceptance,
+    updated_at: now,
+  };
+  await ctx.nodes.update(updated);
+
+  const event = await ctx.events.emit({
+    event_type: 'requirement.acceptance_updated',
+    operation: 'update_requirement_acceptance',
+    node_id: input.requirement_id,
+    node_type: 'requirement',
+    payload: { acceptance: input.acceptance },
+    diff: [{ field: 'acceptance', old_value: oldAcceptance, new_value: input.acceptance }],
   });
 
   return { requirement: updated, event };

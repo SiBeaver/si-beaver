@@ -114,12 +114,13 @@ async function formatRequirement(
     lines.push(`> ${req.description}\n`);
   }
 
-  // Acceptance criteria
-  if (req.acceptance_criteria.length > 0) {
-    const satisfiedTasks = await getSatisfiedTaskCount(ctx, fulfillEdges);
-    lines.push(`**验收标准** (${satisfiedTasks}/${req.acceptance_criteria.length} 可追溯):\n`);
-    for (const ac of req.acceptance_criteria) {
-      lines.push(`- ${ac}`);
+  // Acceptance
+  if (req.acceptance?.type === 'checklist' && req.acceptance.items.length > 0) {
+    const satisfied = req.acceptance.items.filter(i => i.satisfied).length;
+    lines.push(`**验收标准** (${satisfied}/${req.acceptance.items.length} 已满足):\n`);
+    for (const item of req.acceptance.items) {
+      const check = item.satisfied ? 'x' : ' ';
+      lines.push(`- [${check}] ${item.label}`);
     }
     lines.push('');
   }
@@ -173,18 +174,4 @@ async function formatRequirement(
 
   lines.push('---\n');
   return lines.join('\n');
-}
-
-async function getSatisfiedTaskCount(ctx: OperationContext, fulfillEdges: Edge[]): Promise<number> {
-  let count = 0;
-  for (const edge of fulfillEdges) {
-    const node = await ctx.nodes.getById(edge.source_id);
-    if (node && 'status' in node) {
-      const status = (node as any).status;
-      if (status === 'done' || status === 'achieved' || status === 'satisfied') {
-        count++;
-      }
-    }
-  }
-  return count;
 }

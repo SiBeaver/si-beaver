@@ -166,12 +166,33 @@ export const KnowledgeNode = BaseNode.extend({
 });
 export type KnowledgeNode = z.infer<typeof KnowledgeNode>;
 
+// ============================================================
+// 验收标准 schema（基于 Constraint DSL，先 checklist，后续扩展）
+// ============================================================
+
+export const AcceptanceItem = z.object({
+  id: z.string(),
+  label: z.string(),
+  satisfied: z.boolean().default(false),
+});
+export type AcceptanceItem = z.infer<typeof AcceptanceItem>;
+
+export const ChecklistAcceptance = z.object({
+  type: z.literal('checklist'),
+  items: z.array(AcceptanceItem),
+});
+export type ChecklistAcceptance = z.infer<typeof ChecklistAcceptance>;
+
+export const Acceptance = ChecklistAcceptance.nullable().default(null);
+export type Acceptance = z.infer<typeof Acceptance>;
+
 export const RequirementNode = BaseNode.extend({
   type: z.literal('requirement'),
   status: RequirementStatus,
   priority: Priority,
   source: z.string(),
   source_detail: z.string().nullable().default(null),
+  acceptance: Acceptance,
 });
 export type RequirementNode = z.infer<typeof RequirementNode>;
 

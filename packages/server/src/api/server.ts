@@ -9,7 +9,7 @@ import {
   defineGoal, decomposeGoal, updateGoalStatus,
   beginExploration, recordExplorationFinding, concludeExploration, abandonExploration,
   recordDecision,
-  defineRequirement, updateRequirementStatus,
+  defineRequirement, updateRequirementStatus, updateRequirementAcceptance,
   identifyRisk, updateRisk, registerTechDebt,
   recordKnowledge, updateKnowledge, getKnowledgeTree, pinKnowledge, moveKnowledge,
   linkNodes, deleteNode, getProjectState, getNodeContext,
@@ -33,6 +33,7 @@ import { snakeToCamel, camelToSnake, kebabToSnake } from './transforms.js';
 import { triggerAutoLink, AUTO_LINK_OPERATIONS } from '../auto-link/index.js';
 import { handleRequirementAccepted } from '../policies/triggers/requirement-trigger.js';
 import { handleKnowledgeRecorded } from '../policies/self-heal.js';
+import { evaluateAcceptanceGap, evaluateAllAcceptanceGaps } from '../policies/acceptance-evaluator.js';
 
 // ============================================================
 // 操作处理器注册表（导出供 direct-mode 调用方使用）
@@ -49,6 +50,7 @@ export const operationHandlers: Record<string, (ctx: OperationContext, input: an
   record_decision: recordDecision,
   define_requirement: defineRequirement,
   update_requirement_status: updateRequirementStatus,
+  update_requirement_acceptance: updateRequirementAcceptance,
   identify_risk: identifyRisk,
   update_risk: updateRisk,
   register_tech_debt: registerTechDebt,
@@ -276,6 +278,22 @@ function createHonoApp(manager: ProjectManager, authToken?: string): Hono {
   app.get('/:project/api/v1/blockers', async (c) => {
     const slug = c.req.param('project');
     return json(c, await currentBlockers(getCtx(slug)));
+  });
+
+  app.get('/:project/api/v1/requirements/:id/gap', async (c) => {
+    const slug = c.req.param('project');
+    const id = c.req.param('id');
+    try {
+      return json(c, await evaluateAcceptanceGap(getCtx(slug), id));
+    } catch (e: any) {
+      return json(c, { error: e.message }, 404);
+    }
+  });
+
+  app.get('/:project/api/v1/gaps', async (c) => {
+    const slug = c.req.param('project');
+    const gaps = await evaluateAllAcceptanceGaps(getCtx(slug));
+    return json(c, { gaps });
   });
 
   app.get('/:project/api/v1/helm', async (c) => {
