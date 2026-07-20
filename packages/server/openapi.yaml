@@ -1,0 +1,310 @@
+openapi: 3.1.0
+info:
+  title: si-beaver Server API
+  version: 1.0.0
+  description: >-
+    Subset of the si-beaver cognitive-engine REST API.
+    Note: these paths are actually mounted under `/{project}/api/v1/...`
+    (the `{project}` path prefix selects the project context); the prefix is
+    omitted from the path keys below for brevity.
+    All JSON response bodies pass through a snakeToCamel transform, so every
+    key is camelCase (e.g. `requirementId`, `gapItems`, `cutoffDate`).
+
+paths:
+  /api/v1/gaps:
+    get:
+      operationId: getAllAcceptanceGaps
+      summary: Acceptance gaps for all requirements
+      description: >-
+        Evaluates the acceptance gap of every requirement node that has an
+        acceptance definition. Real mount path: `/{project}/api/v1/gaps`.
+      tags: [governance]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Acceptance gaps for all requirements
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [gaps]
+                properties:
+                  gaps:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AcceptanceGap'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/requirements/{id}/gap:
+    get:
+      operationId: getRequirementAcceptanceGap
+      summary: Acceptance gap for a single requirement
+      description: >-
+        Evaluates the acceptance gap of one requirement node.
+        Real mount path: `/{project}/api/v1/requirements/{id}/gap`.
+      tags: [governance]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Requirement node id
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Acceptance gap of the requirement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptanceGap'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Requirement not found (or node is not of type `requirement`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/cockpit:
+    get:
+      operationId: getCockpit
+      summary: Project cockpit overview
+      description: >-
+        Returns active goals, all requirements, and current blockers.
+        Each blocker entry nests the blocking node (risk or tech_debt) and the
+        nodes it blocks. Real mount path: `/{project}/api/v1/cockpit`.
+      tags: [queries]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cockpit state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CockpitResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/stale:
+    get:
+      operationId: getStaleItems
+      summary: Stale nodes not updated within a time window
+      description: >-
+        Returns goal, exploration, risk and tech_debt nodes in an active-ish
+        status that have not been updated for `days` days (default 7).
+        Real mount path: `/{project}/api/v1/stale`.
+      tags: [queries]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: Staleness window in days (default 7)
+          schema:
+            type: integer
+            minimum: 1
+            default: 7
+      responses:
+        '200':
+          description: Stale items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        Static bearer token. Only enforced when the server is started with an
+        auth token configured; otherwise requests pass through unauthenticated.
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Unauthorized
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    Node:
+      description: >-
+        A cognitive node (discriminated union by `type`). Base fields are
+        always present; type-specific fields appear only for the relevant
+        node types (e.g. `severity` only on tech_debt, `likelihood`/`impact`
+        only on risk, `horizon` only on goal).
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - description
+        - tags
+        - createdAt
+        - updatedAt
+        - metadata
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+            - goal
+            - task
+            - exploration
+            - decision
+            - risk
+            - tech_debt
+            - artifact
+            - knowledge
+            - requirement
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          description: Type-specific status enum (see per-type definitions in the server source)
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+          description: Present on goal, task and requirement nodes
+        horizon:
+          type: string
+          enum: [short, medium, long]
+          description: Present on goal nodes
+        likelihood:
+          type: string
+          enum: [low, medium, high]
+          description: Present on risk nodes
+        impact:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Present on risk nodes
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Present on tech_debt nodes
+
+    GapItem:
+      type: object
+      required: [id, label]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+
+    AcceptanceGap:
+      type: object
+      required:
+        - requirementId
+        - requirementTitle
+        - acceptanceType
+        - total
+        - satisfied
+        - unsatisfied
+        - gapItems
+      properties:
+        requirementId:
+          type: string
+        requirementTitle:
+          type: string
+        acceptanceType:
+          type: [string, 'null']
+          description: Currently always `checklist` or null
+        total:
+          type: integer
+        satisfied:
+          type: integer
+        unsatisfied:
+          type: integer
+        gapItems:
+          type: array
+          description: Unsatisfied acceptance checklist items
+          items:
+            $ref: '#/components/schemas/GapItem'
+
+    BlockerEntry:
+      type: object
+      required: [blocker, blocks]
+      properties:
+        blocker:
+          description: The blocking node (type risk or tech_debt)
+          $ref: '#/components/schemas/Node'
+        blocks:
+          type: array
+          description: Nodes targeted by `blocks` edges from the blocker
+          items:
+            $ref: '#/components/schemas/Node'
+
+    CockpitResponse:
+      type: object
+      required: [goals, requirements, blockers]
+      properties:
+        goals:
+          type: array
+          description: Goal nodes with status `active`
+          items:
+            $ref: '#/components/schemas/Node'
+        requirements:
+          type: array
+          description: All requirement nodes
+          items:
+            $ref: '#/components/schemas/Node'
+        blockers:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlockerEntry'
+
+    StaleResponse:
+      type: object
+      required: [staleItems, cutoffDate, days]
+      properties:
+        staleItems:
+          type: array
+          description: Stale nodes sorted by `updatedAt` ascending (oldest first)
+          items:
+            $ref: '#/components/schemas/Node'
+        cutoffDate:
+          type: string
+          format: date-time
+          description: ISO timestamp; nodes with `updatedAt` before this are stale
+        days:
+          type: integer
+          description: Staleness window actually applied
